@@ -1,11 +1,22 @@
 import type { Metadata } from 'next'
 import { AgeGate } from '@/components/AgeGate'
 import { CartDrawer } from '@/components/CartDrawer'
+import { loadStoreProfile, toPublicProfile } from '@/lib/store-profile'
+import { StoreProfileProvider } from '@/lib/store-profile-context'
 import './globals.css'
 
-export const metadata: Metadata = { title: 'Westside — оптовый каталог', description: 'Закрытый B2B-каталог Westside' }
+// Branding/policies come from the deployment profile, which is read at runtime.
+// A closed B2B storefront is personalized anyway, so per-request rendering is
+// correct here and guarantees the profile reflects the actual deployment.
+export const dynamic = 'force-dynamic'
 
-const paletteScript = `(function(){try{var value=localStorage.getItem('westside-palette');if(value)document.documentElement.dataset.palette=value}catch(error){}})()`
+export function generateMetadata(): Metadata {
+  const profile = loadStoreProfile()
+  return {
+    title: `${profile.identity.name} — оптовый каталог`,
+    description: `Закрытый B2B-каталог ${profile.identity.name}`,
+  }
+}
 
 const contract = `<!--
 THESIS: Максимально простой закрытый B2B-каталог; отказываемся от сложных метафор и декоративных панелей.
@@ -17,5 +28,20 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
 -->`
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="ru" data-palette="violet" suppressHydrationWarning><head><script dangerouslySetInnerHTML={{ __html: paletteScript }} /></head><body><span className="design-contract" dangerouslySetInnerHTML={{ __html: contract }} />{children}<AgeGate /><CartDrawer /></body></html>
+  const profile = toPublicProfile(loadStoreProfile())
+  const paletteKey = `${profile.storageNamespace}-palette`
+  const paletteScript = `(function(){try{var k=${JSON.stringify(paletteKey)};var value=localStorage.getItem(k);if(value)document.documentElement.dataset.palette=value}catch(error){}})()`
+  return (
+    <html lang="ru" data-palette={profile.theme.defaultPalette} suppressHydrationWarning>
+      <head><script dangerouslySetInnerHTML={{ __html: paletteScript }} /></head>
+      <body>
+        <span className="design-contract" dangerouslySetInnerHTML={{ __html: contract }} />
+        <StoreProfileProvider profile={profile}>
+          {children}
+          <AgeGate />
+          <CartDrawer />
+        </StoreProfileProvider>
+      </body>
+    </html>
+  )
 }

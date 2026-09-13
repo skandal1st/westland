@@ -6,9 +6,11 @@ import { Menu, Search, ShoppingCart, UserRound, X } from 'lucide-react'
 import { useState } from 'react'
 import { PaletteSwitcher } from '@/components/PaletteSwitcher'
 import { brands, categories } from '@/lib/demo-data'
+import { useStoreProfile } from '@/lib/store-profile-context'
 import { useCart } from '@/store/cart-store'
 
 export function StorefrontHeader() {
+  const profile = useStoreProfile()
   const [menuOpen, setMenuOpen] = useState(false)
   const lines = useCart((state) => state.lines)
   const setCartOpen = useCart((state) => state.setOpen)
@@ -17,8 +19,8 @@ export function StorefrontHeader() {
   return (
     <header className="site-header">
       <div className="header-inner">
-        <Link className="brand-logo" href="/" aria-label="Westside — на главную">
-          <Image src="/brand/westside-logo.png" alt="Westside" width={60} height={60} priority />
+        <Link className="brand-logo" href="/" aria-label={`${profile.identity.name} — на главную`}>
+          <Image src="/brand/westside-logo.png" alt={profile.identity.name} width={60} height={60} priority />
         </Link>
         <button className="catalog-button" onClick={() => setMenuOpen((value) => !value)} aria-expanded={menuOpen}>
           {menuOpen ? <X /> : <Menu />}<span>Каталог</span>

@@ -2,6 +2,7 @@
 
 import { Check, Palette } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { useStoreProfile } from '@/lib/store-profile-context'
 
 const palettes = [
   { id: 'violet', name: 'Фиолетовая', colors: ['#7800f0', '#13d8c8'] },
@@ -17,14 +18,16 @@ function isPalette(value: string | null): value is PaletteId {
 }
 
 export function PaletteSwitcher() {
+  const profile = useStoreProfile()
+  const paletteKey = `${profile.storageNamespace}-palette`
   const [open, setOpen] = useState(false)
-  const [active, setActive] = useState<PaletteId>('violet')
+  const [active, setActive] = useState<PaletteId>(isPalette(profile.theme.defaultPalette) ? profile.theme.defaultPalette : 'violet')
   const rootRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const saved = window.localStorage.getItem('westside-palette')
+    const saved = window.localStorage.getItem(paletteKey)
     if (isPalette(saved)) setActive(saved)
-  }, [])
+  }, [paletteKey])
 
   useEffect(() => {
     if (!open) return
@@ -46,7 +49,7 @@ export function PaletteSwitcher() {
 
   const selectPalette = (id: PaletteId) => {
     document.documentElement.dataset.palette = id
-    window.localStorage.setItem('westside-palette', id)
+    window.localStorage.setItem(paletteKey, id)
     setActive(id)
     setOpen(false)
   }

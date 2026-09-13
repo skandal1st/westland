@@ -34,6 +34,10 @@ COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
+# Bootstrap script + its runtime dep (bcryptjs) so the installer can run
+# `node scripts/bootstrap.mjs` inside the image.
+COPY --from=builder /app/scripts ./scripts
+COPY --from=builder /app/node_modules/bcryptjs ./node_modules/bcryptjs
 
 USER nextjs
 EXPOSE 3000

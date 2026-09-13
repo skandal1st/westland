@@ -1,10 +1,26 @@
+import fs from 'node:fs'
+import path from 'node:path'
 import { prisma } from '@/lib/db'
+import { loadStoreProfile } from '@/lib/store-profile'
 
 export type HealthStatus = {
   status: 'ok' | 'degraded'
   app: 'ok'
   db: 'ok' | 'down'
+  profile: { code: string; name: string }
+  // M1 reports license presence only. Cryptographic validation and runtime
+  // enforcement are M10 — absence here never blocks or degrades the app.
+  license: 'present' | 'absent'
   time: string
+}
+
+function licensePresent(): boolean {
+  try {
+    const file = process.env.LICENSE_GRANT_PATH || path.join(process.cwd(), 'deployment', 'config', 'license.json')
+    return fs.existsSync(file)
+  } catch {
+    return false
+  }
 }
 
 /**
@@ -22,10 +38,13 @@ export async function checkHealth(): Promise<HealthStatus> {
   } catch {
     db = 'down'
   }
+  const profile = loadStoreProfile()
   return {
     status: db === 'ok' ? 'ok' : 'degraded',
     app: 'ok',
     db,
+    profile: { code: profile.identity.code, name: profile.identity.name },
+    license: licensePresent() ? 'present' : 'absent',
     time: new Date().toISOString(),
   }
 }

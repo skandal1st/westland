@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-07T00:00:00+03:00",
+  "title": "Design System: Westside",
+  "extensions": {
+    "colorMeta": {
+      "primary-violet": {"role":"primary","displayName":"Westside Violet","canonical":"#7800f0","tonalRamp":["#240047","#3e007d","#5800ad","#7800f0","#9b42ff","#bd83ff","#dcc0ff","#f1e7ff"]},
+      "selection-aqua": {"role":"secondary","displayName":"Selection Aqua","canonical":"#13d8c8","tonalRamp":["#063d38","#075f57","#09877c","#13d8c8","#55e5d9","#8ceee6","#c2f7f2","#ecfffd"]}
+    },
+    "shadows": [{"name":"overlay","value":"0 22px 56px rgba(31,21,44,.16)","purpose":"Menu, drawer и modal поверх контента."},{"name":"soft","value":"0 12px 34px rgba(31,21,44,.08)","purpose":"Лёгкая глубина ключевой поверхности без границы."}],
+    "motion": [{"name":"surface-enter","value":"200–420ms cubic-bezier(.16,1,.3,1)","purpose":"Смена баннера и появление перекрывающих слоёв."}],
+    "breakpoints": [{"name":"compact-desktop","value":"1200px"},{"name":"mobile","value":"760px"}]
+  },
+  "components": [
+    {"name":"Primary Button","kind":"button","refersTo":"button-primary","description":"Основное действие.","html":"<button class=\"ds-primary\">В корзину</button>","css":".ds-primary{height:46px;padding:0 22px;border:0;background:#7800f0;color:#fff;font:700 15px Arial,sans-serif}.ds-primary:hover{background:#6200c7}.ds-primary:focus-visible{outline:3px solid #13d8c8;outline-offset:2px}"},
+    {"name":"Search","kind":"input","refersTo":"search","description":"Главный поиск каталога.","html":"<input class=\"ds-search\" placeholder=\"Поиск по каталогу\">","css":".ds-search{width:360px;height:50px;padding:0 17px;border:1px solid rgba(255,255,255,.48);border-radius:6px;background:#fff;color:#25242a;font:15px Arial,sans-serif}.ds-search:focus-visible{outline:3px solid #13d8c8;outline-offset:2px}"},
+    {"name":"Selected Navigation","kind":"nav","description":"Активная строка каскадного меню.","html":"<a class=\"ds-nav\" href=\"#\">Табак</a>","css":".ds-nav{display:flex;align-items:center;min-height:50px;padding:0 30px;background:#13d8c8;color:#063b38;text-decoration:none;font:400 17px Arial,sans-serif}"}
+  ],
+  "narrative": {
+    "northStar": "Прямая оптовая витрина",
+    "overview": "Понятный рабочий каталог поставщика без сложных визуальных метафор.",
+    "keyCharacteristics": ["Слегка тонированное рабочее поле","Сплошная утилитарная шапка","Бирюзовое выбранное состояние","Мягкие скругления контента","Адаптивный товарный список"],
+    "rules": [
+      {"name":"Two-Accent Rule","body":"Фиолетовый отвечает за действие и бренд, бирюзовый — за выбранное состояние.","section":"colors"},
+      {"name":"Purposeful Depth Rule","body":"Blur и сильная тень обозначают перекрывающий слой; рабочая поверхность использует границу либо мягкую тень.","section":"elevation"}
+    ],
+    "dos": ["Сохранять белое поле и простую структуру референса.","Показывать цену, фасовку, остаток и действие рядом с товаром."],
+    "donts": ["Не добавлять сложные визуальные метафоры, стекло, градиенты или декоративные панели.","Не показывать товары и цены неавторизованным посетителям."]
+  }
+}

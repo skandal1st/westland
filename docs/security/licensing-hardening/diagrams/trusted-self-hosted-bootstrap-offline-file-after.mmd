@@ -1,0 +1,9 @@
+flowchart LR
+  Issuer[AXIMA offline issuer] -->|Signed license file| Installer[Install CLI]
+  Operator[Client operator] --> Installer
+  Installer --> App[Self-hosted AXIMA app]
+  Installer --> Secrets[Local secrets]
+  App -->|Verify publisher signature| Grant[Local license grant]
+  App --> DB[(Client PostgreSQL)]
+  Copy[Copied app + grant] --> App2[Second installation]
+

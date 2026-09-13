@@ -1,0 +1,11 @@
+node_modules
+.next
+.git
+coverage
+deployment
+services/license-server/keys
+services/license-server/data
+public/uploads
+**/*.test.ts
+.env
+.env.local

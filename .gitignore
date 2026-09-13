@@ -1,0 +1,12 @@
+node_modules
+.next
+tsconfig.tsbuildinfo
+.env
+.env.local
+coverage
+public/uploads
+.impeccable/review
+.impeccable/build
+deployment
+services/license-server/keys
+services/license-server/data

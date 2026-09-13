@@ -1,0 +1,11 @@
+{
+  "outputDir": "./deployment",
+  "store": { "code": "westside", "name": "Westside", "baseUrl": "https://shop.example.com", "timezone": "Europe/Moscow", "currency": "RUB" },
+  "admin": { "email": "admin@example.com", "name": "Administrator" },
+  "modules": ["commerce-core", "commerce-b2b", "content", "invoices"],
+  "database": { "urlEnv": "AXIMA_DATABASE_URL" },
+  "email": { "enabled": true, "host": "smtp.example.com", "port": 587, "secure": false, "username": "mailer@example.com", "passwordEnv": "AXIMA_SMTP_PASSWORD", "fromAddress": "mailer@example.com", "fromName": "Westside" },
+  "integration": { "provider": "one-c" },
+  "license": { "serverUrl": "http://127.0.0.1:4010", "publisherPublicKeyFile": "./services/license-server/keys/publisher-public.pem", "activationKeyEnv": "AXIMA_ACTIVATION_KEY", "deploymentClass": "production" }
+}
+

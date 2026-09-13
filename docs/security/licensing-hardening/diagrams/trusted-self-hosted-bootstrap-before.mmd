@@ -1,0 +1,9 @@
+flowchart LR
+  Operator[Client operator] --> App[Self-hosted AXIMA app]
+  App --> DB[(Client PostgreSQL)]
+  App --> ERP[Client ERP]
+  Copy[Copied application/config] --> App2[Second installation]
+  App2 --> DB2[(Second database)]
+  Note[No installation identity or entitlement verifier] -.-> App
+  Note -.-> App2
+

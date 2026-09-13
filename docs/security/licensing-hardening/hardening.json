@@ -1,0 +1,99 @@
+{
+  "documentType": "codex-security.hardening-analysis",
+  "schemaVersion": "1.0",
+  "analysisId": "self_hosted_installation_licensing_20260907",
+  "sourceEvidence": {
+    "kind": "source_and_document_collection",
+    "label": "AXIMA Commerce platform, schema, integration and runtime sources",
+    "collectionSha256": "db3c8c413c23b859392785599d3af00e2e74106702ff44f9e2e2122d73c20072",
+    "artifactCount": 5,
+    "sourceDrift": "unknown"
+  },
+  "assessment": {
+    "outcome": "opportunities_identified",
+    "summary": "Hybrid activation with an installation-bound local perpetual grant was selected and its first implementation slice was added."
+  },
+  "constraints": {
+    "profile": "balanced",
+    "changeHorizons": ["incremental", "foundational"],
+    "nonNegotiables": ["Self-hosted deployment", "No continuous heartbeat", "No claim of protection against a root-controlled full clone"],
+    "assumptions": ["One production seat", "Perpetual runtime entitlement", "No staging seat until policy is confirmed"]
+  },
+  "opportunities": [{
+    "opportunityId": "trusted-self-hosted-bootstrap",
+    "title": "Trusted self-hosted bootstrap and installation-bound entitlement",
+    "summary": "Make one installer own configuration, secrets, installation identity and activation.",
+    "diagnosis": "The platform had store and integration seams but no owner for installation identity, module grants or safe first-run configuration.",
+    "evidence": [
+      {"claimType":"observed","sourceKind":"document","evidenceId":"E001","path":"docs/PLATFORM_FOUNDATION.md","claim":"The platform requires per-client profiles and idempotent bootstrap."},
+      {"claimType":"observed","sourceKind":"source","evidenceId":"E004","path":"prisma/schema.prisma","claim":"Commerce is store-scoped but installation entitlement is absent."},
+      {"claimType":"observed","sourceKind":"source","evidenceId":"E005","path":"package.json","claim":"The original runtime exposed no install or license command."}
+    ],
+    "desiredInvariants": [
+      "Each production deployment has a locally generated installation keypair.",
+      "Only publisher-signed grants enable modules.",
+      "An activated perpetual store operates without AXIMA network access.",
+      "Effective capabilities equal installed intersect licensed intersect enabled."
+    ],
+    "proposalPath": "proposals/trusted-self-hosted-bootstrap.md",
+    "options": [
+      {
+        "optionId": "offline-signed-file",
+        "title": "Offline signed license file",
+        "kind": "baseline",
+        "summary": "Use a publisher-signed file with no required activation service.",
+        "diagramPaths": {"before":"diagrams/trusted-self-hosted-bootstrap-before.mmd","after":"diagrams/trusted-self-hosted-bootstrap-offline-file-after.mmd"},
+        "evidenceCoverage": [{"evidenceId":"E005","effect":"mitigates","tacticalFixRequired":true,"rationale":"Adds integrity but weak installation binding."}],
+        "tradeoffs": [
+          {"dimension":"security","direction":"improves","confidence":"high","basis":"source-derived","assessment":"Blocks unsigned edits but not file copying.","validationPlan":"Tamper with and copy grants."},
+          {"dimension":"performance","direction":"neutral","confidence":"medium","basis":"analogous","assessment":"Local verification only.","validationPlan":"Measure cold start."},
+          {"dimension":"memory","direction":"neutral","confidence":"medium","basis":"analogous","assessment":"One bounded grant.","validationPlan":"Compare RSS."},
+          {"dimension":"reliability","direction":"improves","confidence":"high","basis":"source-derived","assessment":"No online dependency.","validationPlan":"Restart offline."},
+          {"dimension":"operability","direction":"regresses","confidence":"medium","basis":"hypothetical","assessment":"Manual issuance burden.","validationPlan":"Rehearse issuance and transfer."},
+          {"dimension":"migration","direction":"improves","confidence":"medium","basis":"source-derived","assessment":"Grant format can be reused.","validationPlan":"Test both transports."}
+        ],
+        "residualRisks": ["Grant copying"],
+        "implementationReadiness": {"affectedComponents":["scripts/install.mjs","packages/license-core"],"workPackages":["Local verifier"],"acceptanceCriteria":["Modified grants fail"],"migrationNotes":[],"rollback":"Restore prior grant and release."}
+      },
+      {
+        "optionId": "hybrid-activation-local-grant",
+        "title": "Hybrid activation and local perpetual grant",
+        "kind": "structural",
+        "summary": "Bind a signed grant to a locally generated installation key via an activation service.",
+        "diagramPaths": {"before":"diagrams/trusted-self-hosted-bootstrap-before.mmd","after":"diagrams/trusted-self-hosted-bootstrap-hybrid-activation-after.mmd"},
+        "evidenceCoverage": [{"evidenceId":"E001","effect":"addresses","tacticalFixRequired":true,"rationale":"Creates the selected bootstrap boundary."},{"evidenceId":"E005","effect":"addresses","tacticalFixRequired":true,"rationale":"Adds explicit install and activation entrypoints."}],
+        "tradeoffs": [
+          {"dimension":"security","direction":"improves","confidence":"high","basis":"source-derived","assessment":"Partial copies require activation; full identity clones remain possible.","validationPlan":"Test partial and full copies."},
+          {"dimension":"performance","direction":"neutral","confidence":"medium","basis":"analogous","assessment":"Activation is outside commerce; verification is local.","validationPlan":"Measure activation and cold start."},
+          {"dimension":"memory","direction":"neutral","confidence":"medium","basis":"analogous","assessment":"Bounded key and grant cache.","validationPlan":"Compare RSS."},
+          {"dimension":"reliability","direction":"improves","confidence":"high","basis":"source-derived","assessment":"Existing installs run offline.","validationPlan":"Block network and run commerce smoke tests."},
+          {"dimension":"operability","direction":"regresses","confidence":"high","basis":"hypothetical","assessment":"Requires key, activation and audit operations.","validationPlan":"Rehearse activation, transfer and rotation."},
+          {"dimension":"migration","direction":"regresses","confidence":"medium","basis":"source-derived","assessment":"Requires ordered installer, verifier and enforcement slices.","validationPlan":"Migrate a disposable deployment."}
+        ],
+        "residualRisks": ["Root patching", "Full persistent-volume clone", "Publisher key compromise"],
+        "implementationReadiness": {"affectedComponents":["packages/license-core","scripts/install.mjs","services/license-server"],"workPackages":["Contracts","Verifier","Installer","Activation service","Runtime enforcement"],"acceptanceCriteria":["Offline restart","Partial copy rejected","Server-side module checks"],"migrationNotes":["Development mode must be explicit"],"rollback":"Keep prior release, identity and valid grant."}
+      },
+      {
+        "optionId": "online-short-lived-lease",
+        "title": "Short-lived online lease",
+        "kind": "isolation",
+        "summary": "Require recurring centrally issued entitlement renewal.",
+        "diagramPaths": {"before":"diagrams/trusted-self-hosted-bootstrap-before.mmd","after":"diagrams/trusted-self-hosted-bootstrap-online-lease-after.mmd"},
+        "evidenceCoverage": [{"evidenceId":"E002","effect":"mitigates","tacticalFixRequired":true,"rationale":"Stronger revocation conflicts with offline runtime goals."}],
+        "tradeoffs": [
+          {"dimension":"security","direction":"improves","confidence":"high","basis":"analogous","assessment":"Faster revocation and clone detection.","validationPlan":"Test duplicate leases and revocation."},
+          {"dimension":"performance","direction":"regresses","confidence":"low","basis":"hypothetical","assessment":"Recurring network work.","validationPlan":"Measure renewal load."},
+          {"dimension":"memory","direction":"neutral","confidence":"medium","basis":"analogous","assessment":"Bounded lease state.","validationPlan":"Compare RSS."},
+          {"dimension":"reliability","direction":"regresses","confidence":"high","basis":"source-derived","assessment":"Licensing outage can degrade the store.","validationPlan":"Inject outage and clock skew."},
+          {"dimension":"operability","direction":"regresses","confidence":"high","basis":"hypothetical","assessment":"Requires a highly available control plane.","validationPlan":"Define and rehearse SLOs."},
+          {"dimension":"migration","direction":"regresses","confidence":"medium","basis":"source-derived","assessment":"Every install needs lease and degraded-state migration.","validationPlan":"Test migration and reversal."}
+        ],
+        "residualRisks": ["False lockouts", "Root patching"],
+        "implementationReadiness": {"affectedComponents":["scripts/install.mjs","services/license-server"],"workPackages":["Lease state machine"],"acceptanceCriteria":["Deterministic expiry without data loss"],"migrationNotes":["Replace all grants"],"rollback":"Issue perpetual grants before lease removal."}
+      }
+    ],
+    "recommendedOptionId": "hybrid-activation-local-grant",
+    "recommendation": "Selected: hybrid activation with a locally verified perpetual grant and no mandatory heartbeat."
+  }],
+  "openQuestions": ["Staging seat policy", "Update entitlement", "Transfer overlap", "First-release offline activation"]
+}

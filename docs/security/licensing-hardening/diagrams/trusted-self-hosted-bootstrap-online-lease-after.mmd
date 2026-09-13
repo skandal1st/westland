@@ -1,0 +1,10 @@
+flowchart LR
+  Operator[Client operator] --> Installer[Install CLI]
+  Installer --> LicenseServer[AXIMA licensing server]
+  LicenseServer --> Lease[Short-lived signed lease]
+  Lease --> App[Self-hosted AXIMA app]
+  App -->|Continuous renewal| LicenseServer
+  App --> DB[(Client PostgreSQL)]
+  Outage[Network or licensing outage] --> Degraded[Grace period / blocked modules]
+  Degraded --> App
+

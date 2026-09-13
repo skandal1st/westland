@@ -1,0 +1,44 @@
+# Baseline local/dev stack for AXIMA Commerce (M0).
+# `docker compose up -d postgres`  -> just the database (for tests / prisma).
+# `docker compose up --build`      -> full app + database.
+# Production hardening (nginx, HTTPS, backups) is layered in M1/M10.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-westside}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-westside}
+      POSTGRES_DB: ${POSTGRES_DB:-westside}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-westside} -d ${POSTGRES_DB:-westside}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:-postgresql://westside:westside@postgres:5432/westside}
+    ports:
+      - '${APP_PORT:-3000}:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Apply committed migrations, then start. Never `db push` in a deployment.
+    command: sh -c "node_modules/.bin/prisma migrate deploy && node server.js"
+    healthcheck:
+      test: ['CMD-SHELL', 'node -e "fetch(\"http://127.0.0.1:3000/api/health\").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    profiles: ['full']
+
+volumes:
+  postgres_data:

@@ -1,0 +1,12 @@
+flowchart LR
+  Operator[Client operator] --> Installer[Install CLI]
+  Installer -->|Generate keypair| Identity[Installation identity]
+  Installer -->|Activation key + public key| LicenseServer[AXIMA licensing server]
+  LicenseServer -->|Publisher-signed grant| Installer
+  Installer --> Secrets[Restricted local secrets]
+  Installer --> App[Self-hosted AXIMA app]
+  App -->|Local signature + identity check| Grant[Local license grant]
+  App --> DB[(Client PostgreSQL)]
+  App -.->|Optional status/update check| LicenseServer
+  Copy[App + config without private key] --> Rejected[Activation required]
+

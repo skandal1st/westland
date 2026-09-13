@@ -1,0 +1,4 @@
+{
+  "extends": "next/core-web-vitals",
+  "ignorePatterns": ["packages/**", "services/**", "scripts/**", ".next/**", "node_modules/**"]
+}

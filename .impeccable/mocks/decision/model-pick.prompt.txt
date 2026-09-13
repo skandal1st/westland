@@ -1,0 +1,13 @@
+model-pick — «Стена образцов»
+Viewport: 1440×1000 landscape desktop web.
+Surface: authenticated post-login B2B catalog for Westside, legal entities only.
+
+Generate a full-fidelity flat desktop-web screenshot for the direction «Стена образцов»: an architectural showroom material wall / swatch catalog rather than a generic ecommerce grid. Use exact palette #17251D deep forest, #F3EEE2 warm chalk, #E6A92B golden ochre, #B8C9B7 muted sage. Materials: painted metal, matte sample card, embossed markers, hairline dividers; crisp rectangular topology, restrained physical shadows; no gradients, glassmorphism, neon, purple, or gratuitous pills.
+
+Include a dark utility header with WESTSIDE / B2B-КАТАЛОГ, search «Найти товар, бренд или артикул», nav «Каталог», «Бренды», «Заказы», «Документы», customer «ООО „Демо-партнёр“», and «Корзина · 4». Below it show «Закрытый каталог · доступ подтверждён» and «Только для юридических лиц». Use a dark-green vertical category index: 01 Кальяны, 02 Чаши, 03 Угли, 04 Аксессуары, 05 Расходники, with ochre active bar and consultant tool «Запросить подбор».
+
+Main heading: «Стена образцов»; supporting copy: «Соберите заказ по категории, бренду и наличию»; explicit label: «ДЕМО-ДАННЫЕ · СИНТЕТИЧЕСКИЙ НАБОР». Fill the viewport with 5–7 asymmetric, oversized tactile slabs using refined synthetic studio product imagery/placeholders. Sample content: «Кальяны / Серия W-01», «Склад: 24 шт.», «Короб: 4 шт.», «Цена после входа»; «Чаши / Форма C-12», «Склад: 68 шт.», «Упаковка: 6 шт.»; «Угли / Тест U-08», «Склад: 120 уп.», «Короб: 10 уп.»; «Аксессуары / Набор A-04», «Склад: 37 наборов». Add embossed IDs like WS—SAMPLE 01, batch markers, and ruler ticks.
+
+Add a dark order-access panel: «Заказ для ООО „Демо-партнёр“», «4 позиции», «Доступна персональная цена», ochre CTA «Перейти к заказу», and «Запросить условия». Show no numeric price. All products, counts, organization names, and imagery are fictional/synthetic and visibly labeled. Make no commercial claims. Russian UI only except WESTSIDE and synthetic IDs. No browser chrome, frame, perspective, or annotations.
+
+Known limitation: ImageGen returned a PNG source. Convert its actual container to WebP when placing at model-pick.webp; do not merely rename the extension.

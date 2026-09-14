@@ -45,6 +45,9 @@ export async function enqueueJob(
       idempotencyKey: `${input.type}:${input.connectionId}:${Date.now()}`,
       payload: (input.payload ?? undefined) as any,
       maxAttempts: input.maxAttempts ?? 5,
+      // Set from the app clock so due-detection is consistent with runDueJobs
+      // (avoids DB/app clock skew leaving a fresh job briefly "not due").
+      availableAt: new Date(),
     },
   })
 }

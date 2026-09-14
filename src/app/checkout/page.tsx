@@ -24,7 +24,9 @@ export default function CheckoutPage() {
   const [comment, setComment] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [order, setOrder] = useState<{ number: string; total: number; currency: string } | null>(null)
+  const [order, setOrder] = useState<{ id: string; number: string; total: number; currency: string } | null>(null)
+  const [submitState, setSubmitState] = useState<'idle' | 'busy' | 'done'>('idle')
+  const [exportStatus, setExportStatus] = useState<string | null>(null)
   const idempotencyKey = useMemo(() => (typeof crypto !== 'undefined' ? crypto.randomUUID() : String(Date.now())), [])
   const currency = view.currency === 'RUB' ? '₽' : view.currency
 
@@ -41,11 +43,20 @@ export default function CheckoutPage() {
     try {
       const response = await fetch('/api/checkout', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ deliveryLocationId: locationId, comment, idempotencyKey }) })
       const data = await response.json().catch(() => ({}))
-      if (response.ok) { setOrder({ number: data.number, total: data.total, currency: data.currency }); await refresh() }
+      if (response.ok) { setOrder({ id: data.orderId, number: data.number, total: data.total, currency: data.currency }); await refresh() }
       else setError(ERRORS[data.error] ?? 'Не удалось оформить заказ.')
     } finally {
       setBusy(false)
     }
+  }
+
+  const submitOrder = async () => {
+    if (!order) return
+    setSubmitState('busy')
+    const response = await fetch(`/api/orders/${order.id}/submit`, { method: 'POST' })
+    const data = await response.json().catch(() => ({}))
+    setExportStatus(data.export?.status ?? (response.ok ? 'PENDING' : 'ошибка'))
+    setSubmitState('done')
   }
 
   if (order) {
@@ -54,8 +65,15 @@ export default function CheckoutPage() {
         <StorefrontHeader />
         <main className="checkout-success">
           <CheckCircle2 />
-          <h1>Черновик заказа {order.number} создан</h1>
-          <p>Заказ сохранён как черновик. Отправка в учётную систему и PDF-счёт появятся на следующих этапах (M7–M8).</p>
+          <h1>Заказ {order.number} {submitState === 'done' ? 'оформлен' : 'создан (черновик)'}</h1>
+          {submitState !== 'done' ? (
+            <>
+              <p>Заказ сохранён как черновик. Подтвердите отправку — заказ будет передан в учётную систему.</p>
+              <button className="button button-primary" disabled={submitState === 'busy'} onClick={submitOrder}>{submitState === 'busy' ? 'Отправка…' : 'Оформить и отправить'}</button>
+            </>
+          ) : (
+            <p>Заказ отправлен. Статус экспорта в учётную систему: <strong>{exportStatus}</strong>. PDF-счёт появится на следующем этапе (M8).</p>
+          )}
           <Link href="/catalog">Вернуться в каталог</Link>
         </main>
       </>

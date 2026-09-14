@@ -7,14 +7,10 @@ import { useCallback, useEffect, useState } from 'react'
 import { CatalogAdminPanel } from '@/components/CatalogAdminPanel'
 import { IntegrationsPanel } from '@/components/IntegrationsPanel'
 import { CommercePanel } from '@/components/CommercePanel'
+import { OrdersPanel } from '@/components/OrdersPanel'
 import { useStoreProfile } from '@/lib/store-profile-context'
 
-// Orders/banners remain demonstrative until their milestones (M7/M9).
-const orders = [
-  ['WS-1048', 'ООО «Партнёр Запад»', '06.09.2026, 16:42', '48 230 ₽', 'Новый'],
-  ['WS-1047', 'ООО «Точка»', '06.09.2026, 15:18', '21 870 ₽', 'Подтверждён'],
-  ['WS-1046', 'ИП Демо', '06.09.2026, 12:09', '73 510 ₽', 'В работе'],
-]
+// Banners remain demonstrative until M9.
 const banners = [
   ['Общий каталог', 'Все бренды', 'Активен'],
   ['Black Burn', 'Black Burn', 'Активен'],
@@ -83,7 +79,7 @@ export function StaffDashboard() {
       <section className="staff-content">
         <header><div><h1>{section}</h1><p>{profile.identity.name} · back office</p></div>{actionLabel ? <button className="button button-primary">{actionLabel}</button> : null}</header>
 
-        {section === 'Заказы' ? <><div className="summary-strip"><div><span>Новые</span><strong>8</strong></div><div><span>В работе</span><strong>14</strong></div><div><span>Сегодня</span><strong>126 480 ₽</strong></div></div><div className="staff-table"><div className="table-head"><span>Заказ</span><span>Покупатель</span><span>Создан</span><span>Сумма</span><span>Статус</span><span /></div>{orders.map((order) => <button className="table-row" key={order[0]}>{order.map((cell, index) => <span key={cell} className={index === 4 ? 'status' : ''}>{cell}</span>)}<ChevronRight /></button>)}</div></> : null}
+        {section === 'Заказы' ? <OrdersPanel /> : null}
 
         {section === 'Модерация' ? (
           <div className="moderation-list">

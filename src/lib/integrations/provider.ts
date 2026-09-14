@@ -14,6 +14,18 @@ export type ProviderKind = 'ONE_C' | 'MOYSKLAD' | 'CUSTOM'
 
 export type ProviderPage = { items: unknown[]; nextCursor?: string }
 
+/** Transport-independent order payload. `id` is the Commerce Order ID = idempotency key. */
+export type OrderExportPayload = {
+  id: string
+  number: string
+  customer: { id: string; inn: string; legalName: string }
+  delivery: { name: string; city: string; address: string }
+  channel: { code: string; paymentMethod: string }
+  items: Array<{ sku: string; quantity: number; unitPrice: number }>
+  total: number
+  currency: string
+}
+
 export interface OperationalProvider {
   readonly provider: ProviderKind
   healthcheck(): Promise<{ ok: boolean; message?: string }>
@@ -23,6 +35,10 @@ export interface OperationalProvider {
   pullPrices?(cursor?: string): Promise<ProviderPage>
   /** One page of raw availability payloads (M5). */
   pullAvailability?(cursor?: string): Promise<ProviderPage>
+  /** Submit an order (M7). MUST be idempotent on `order.id`. */
+  submitOrder?(order: OrderExportPayload): Promise<{ externalId: string; acceptedAt: Date }>
+  /** Reconcile an exported order's status (M7). */
+  getOrderStatus?(externalId: string): Promise<{ status: string }>
 }
 
 export class ProviderNotConfiguredError extends Error {

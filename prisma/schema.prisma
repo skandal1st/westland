@@ -88,6 +88,16 @@ enum IntegrationJobStatus {
   RETRYING
 }
 
+// Order EXPORT lifecycle — deliberately separate from the business OrderStatus.
+// Provider-specific outcomes live here, never inside Order.status.
+enum OrderExportStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+  RETRYING
+}
+
 model Store {
   id           String                  @id @default(cuid())
   slug         String                  @unique
@@ -501,6 +511,7 @@ model Order {
   comment    String             @default("")
   items      OrderItem[]
   invoice    Invoice?
+  export     OrderExport?
   createdAt  DateTime           @default(now())
   updatedAt  DateTime           @updatedAt
 
@@ -556,6 +567,30 @@ model CartItem {
   updatedAt DateTime       @updatedAt
 
   @@unique([cartId, variantId])
+}
+
+// Durable per-order export state (integration lifecycle). The Commerce Order ID
+// is the idempotency key at the provider, so re-submitting one order never
+// creates a duplicate. Retries are bounded; errors persist in IntegrationError.
+model OrderExport {
+  id           String            @id @default(cuid())
+  storeId      String
+  orderId      String            @unique
+  order        Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  connectionId String?
+  status       OrderExportStatus @default(PENDING)
+  attempts     Int               @default(0)
+  maxAttempts  Int               @default(5)
+  availableAt  DateTime          @default(now())
+  externalId   String?
+  lastError    String?
+  submittedAt  DateTime?
+  confirmedAt  DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@index([status, availableAt])
+  @@index([storeId, status])
 }
 
 model Invoice {

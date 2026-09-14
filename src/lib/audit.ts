@@ -13,6 +13,8 @@ export const AuditAction = {
   ProductContentUpdated: 'ProductContentUpdated',
   PriceGroupChanged: 'PriceGroupChanged',
   FulfillmentChannelChanged: 'FulfillmentChannelChanged',
+  OrderStatusChanged: 'OrderStatusChanged',
+  OrderExportRetried: 'OrderExportRetried',
 } as const
 
 export type AuditActionName = (typeof AuditAction)[keyof typeof AuditAction] | (string & {})

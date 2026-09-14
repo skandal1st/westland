@@ -1,9 +1,11 @@
-import type { OperationalProvider, ProviderKind, ProviderPage } from '@/lib/integrations/provider'
+import type { OperationalProvider, OrderExportPayload, ProviderKind, ProviderPage } from '@/lib/integrations/provider'
 
 /**
  * Deterministic, paginated fixture provider for dev/tests. The cursor is a
  * numeric offset encoded as a string. `failOnPage` simulates a provider outage
- * mid-import so checkpoint/resume can be exercised.
+ * mid-import so checkpoint/resume can be exercised. `submitOrder` is idempotent
+ * on order.id via an in-memory registry; `failSubmitTimes` simulates transient
+ * submit failures.
  */
 export function createMockProvider(options: {
   products: Array<Record<string, unknown>>
@@ -13,8 +15,12 @@ export function createMockProvider(options: {
   failOnPage?: number
   provider?: ProviderKind
   healthy?: boolean
+  failSubmitTimes?: number
+  orderStatus?: string
 }): OperationalProvider {
   const pageSize = Math.max(options.pageSize ?? 2, 1)
+  const submitted = new Map<string, string>() // order.id -> externalId (idempotency)
+  let submitFailuresLeft = options.failSubmitTimes ?? 0
   const paginate = (items: Array<Record<string, unknown>>, cursor?: string): ProviderPage => {
     const start = cursor ? Number(cursor) : 0
     const nextStart = start + pageSize
@@ -36,6 +42,17 @@ export function createMockProvider(options: {
     },
     async pullAvailability(cursor?: string): Promise<ProviderPage> {
       return paginate(options.availability ?? [], cursor)
+    },
+    async submitOrder(order: OrderExportPayload) {
+      const seen = submitted.get(order.id)
+      if (seen) return { externalId: seen, acceptedAt: new Date() } // idempotent on order id
+      if (submitFailuresLeft > 0) { submitFailuresLeft -= 1; throw new Error('mock provider submit failure') }
+      const externalId = `EXT-ORD-${order.id.slice(-8)}`
+      submitted.set(order.id, externalId)
+      return { externalId, acceptedAt: new Date() }
+    },
+    async getOrderStatus(_externalId: string) {
+      return { status: options.orderStatus ?? 'CONFIRMED' }
     },
   }
 }

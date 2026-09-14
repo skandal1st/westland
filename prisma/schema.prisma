@@ -14,9 +14,14 @@ enum UserRole {
 }
 
 enum UserStatus {
-  PENDING
   ACTIVE
-  BLOCKED
+  SUSPENDED
+}
+
+enum RegistrationStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum RegistrationMode {
@@ -89,6 +94,8 @@ model Store {
   banners      SiteBanner[]
   orders       Order[]
   integrations IntegrationConnection[]
+  registrationRequests RegistrationRequest[]
+  auditEntries AuditEntry[]
   createdAt    DateTime                @default(now())
   updatedAt    DateTime                @updatedAt
 }
@@ -119,12 +126,15 @@ model User {
   name         String
   phone        String?
   role         UserRole    @default(BUYER)
-  status       UserStatus  @default(PENDING)
+  status       UserStatus  @default(ACTIVE)
   moderatedById String?
   moderatedBy   User?       @relation("UserModeration", fields: [moderatedById], references: [id], onDelete: SetNull)
   moderatedUsers User[]     @relation("UserModeration")
   moderatedAt   DateTime?
   moderationComment String?
+  reviewedRegistrations RegistrationRequest[] @relation("RegistrationReviewer")
+  registrationRecord    RegistrationRequest?  @relation("RegistrationUser")
+  auditEntries          AuditEntry[]          @relation("AuditActor")
   orders       Order[]
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
@@ -147,6 +157,7 @@ model Customer {
   users       User[]
   locations   CustomerLocation[]
   orders      Order[]
+  registrationRequests RegistrationRequest[]
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
 
@@ -181,6 +192,7 @@ model PriceGroup {
   users    User[]
   prices   ProductPrice[]
   fulfillmentChannels FulfillmentChannel[]
+  registrationRequests RegistrationRequest[]
 
   @@unique([storeId, code])
 }
@@ -450,4 +462,62 @@ model OutboxEvent {
   createdAt   DateTime     @default(now())
 
   @@index([status, availableAt])
+}
+
+// A B2B access application, kept separate from the activated User so the
+// request (and its moderation outcome) survives as a record. On approval a
+// Customer + User are created inside one transaction; on rejection the request
+// is retained with a reason. See docs/AXIMA_COMMERCE_IMPLEMENTATION_PLAN.md M2.
+model RegistrationRequest {
+  id                   String             @id @default(cuid())
+  storeId              String
+  store                Store              @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  email                String
+  passwordHash         String
+  contactName          String
+  phone                String?
+  legalName            String
+  inn                  String
+  kpp                  String?
+  status               RegistrationStatus @default(PENDING)
+  reviewedById         String?
+  reviewedBy           User?              @relation("RegistrationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt           DateTime?
+  comment              String?
+  assignedPriceGroupId String?
+  assignedPriceGroup   PriceGroup?        @relation(fields: [assignedPriceGroupId], references: [id], onDelete: SetNull)
+  createdUserId        String?            @unique
+  createdUser          User?              @relation("RegistrationUser", fields: [createdUserId], references: [id], onDelete: SetNull)
+  createdCustomerId    String?
+  createdCustomer      Customer?          @relation(fields: [createdCustomerId], references: [id], onDelete: SetNull)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  @@index([storeId, status, createdAt])
+  @@index([storeId, email])
+  @@index([reviewedById])
+  @@index([assignedPriceGroupId])
+  @@index([createdCustomerId])
+}
+
+// Append-only record of critical staff/admin actions (who changed what, by
+// hand). NOT analytics domain events. Introduced in M2 and reused by later
+// milestones (PriceGroupChanged, OrderStatusChanged, InvoiceReissued, ...).
+model AuditEntry {
+  id         String   @id @default(cuid())
+  storeId    String
+  store      Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  actorId    String?
+  actor      User?    @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  actorEmail String?
+  action     String
+  targetType String
+  targetId   String
+  summary    String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([storeId, createdAt])
+  @@index([targetType, targetId])
+  @@index([actorId])
 }

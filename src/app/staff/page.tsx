@@ -1,3 +1,7 @@
 import { StaffDashboard } from '@/components/StaffDashboard'
-export default function StaffPage() { return <StaffDashboard /> }
+import { requireStaffPage } from '@/lib/authz'
 
+export default async function StaffPage() {
+  await requireStaffPage()
+  return <StaffDashboard />
+}

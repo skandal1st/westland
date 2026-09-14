@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
 import { AgeGate } from '@/components/AgeGate'
 import { CartDrawer } from '@/components/CartDrawer'
+import { Providers } from '@/components/Providers'
 import { loadStoreProfile, toPublicProfile } from '@/lib/store-profile'
-import { StoreProfileProvider } from '@/lib/store-profile-context'
 import './globals.css'
 
 // Branding/policies come from the deployment profile, which is read at runtime.
@@ -36,11 +36,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <head><script dangerouslySetInnerHTML={{ __html: paletteScript }} /></head>
       <body>
         <span className="design-contract" dangerouslySetInnerHTML={{ __html: contract }} />
-        <StoreProfileProvider profile={profile}>
+        <Providers profile={profile}>
           {children}
           <AgeGate />
           <CartDrawer />
-        </StoreProfileProvider>
+        </Providers>
       </body>
     </html>
   )

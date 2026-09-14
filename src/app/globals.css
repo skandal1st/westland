@@ -296,6 +296,7 @@ a { color: inherit; }
 .table-head { min-height: 48px; padding: 0 20px; color: var(--muted); font-size: 12px; }
 .table-row { width: 100%; min-height: 66px; padding: 0 20px; border: 0; border-top: 1px solid var(--line); background: transparent; text-align: left; cursor: pointer; transition: background-color .15s ease-out; }
 .table-row:hover { background: var(--selected-bg); }
+.orders-table .table-head, .orders-table .table-row { min-width: 960px; grid-template-columns: 110px 1.4fr 1fr 120px 120px 110px 24px; }
 .status { color: var(--purple); font-weight: 700; }
 .staff-placeholder { min-height: 420px; padding: 44px; background: var(--glass); border: 1px solid var(--line); border-radius: var(--radius-panel); }
 .staff-placeholder p { max-width: 680px; color: var(--muted); }

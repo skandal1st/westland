@@ -17,4 +17,6 @@ export default defineConfig({
   resolve: {
     alias: { '@': path.resolve(__dirname, 'src') },
   },
+  // Match Next.js: automatic JSX runtime so .tsx (e.g. the PDF renderer) needs no React import.
+  esbuild: { jsx: 'automatic' },
 })

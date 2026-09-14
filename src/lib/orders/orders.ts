@@ -5,6 +5,8 @@ import { canTransition, mapProviderStatus } from '@/lib/orders/state'
 import { enqueueOrderExport } from '@/lib/integrations/order-export'
 import type { OperationalProvider } from '@/lib/integrations/provider'
 import type { SessionUser } from '@/lib/authz'
+import { issueInvoice, InvoiceError } from '@/lib/invoices/invoices'
+import { logger } from '@/lib/logger'
 
 export class OrderError extends Error {
   constructor(public code: 'NOT_FOUND' | 'INVALID_STATE') {
@@ -34,12 +36,27 @@ export async function submitOrder(user: SessionUser, orderId: string, client: Pr
 
   const connectionId = await resolvePrimaryConnectionId(user.storeId, client)
 
-  return client.$transaction(async (tx) => {
-    const updated = await tx.order.update({ where: { id: order.id }, data: { status: 'SUBMITTED' } })
+  const updated = await client.$transaction(async (tx) => {
+    const result = await tx.order.update({ where: { id: order.id }, data: { status: 'SUBMITTED' } })
     await enqueueOrderExport({ storeId: user.storeId, orderId: order.id, connectionId }, tx as unknown as PrismaClient)
     await recordAudit(tx, { storeId: user.storeId, actor: user, action: AuditAction.OrderStatusChanged, targetType: 'Order', targetId: order.id, summary: `DRAFT -> SUBMITTED`, metadata: { from: 'DRAFT', to: 'SUBMITTED' } })
-    return updated
+    return result
   })
+
+  // Best-effort invoice issue so the buyer's success path (order + PDF) works
+  // when seller requisites are configured. Missing requisites never block the
+  // submit — staff can issue later from the backoffice.
+  try {
+    await issueInvoice({ storeId: user.storeId, orderId: order.id, actor: user }, client)
+  } catch (error) {
+    if (error instanceof InvoiceError && error.code === 'NO_SELLER_REQUISITES') {
+      logger.info('invoice deferred: seller requisites not configured', { orderId: order.id })
+    } else {
+      logger.error('auto-issue invoice failed', { orderId: order.id, error: (error as Error).message })
+    }
+  }
+
+  return updated
 }
 
 /** Advance the business status (staff / reconciliation). Invalid transitions are rejected. */

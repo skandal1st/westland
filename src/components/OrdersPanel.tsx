@@ -10,6 +10,7 @@ type Order = {
   currency: string
   customer: string
   export: { status: string; externalId: string | null; attempts: number; lastError: string | null } | null
+  invoice: { number: string; version: number } | null
 }
 
 const NEXT: Record<string, string[]> = {
@@ -42,7 +43,7 @@ export function OrdersPanel() {
 
   return (
     <div className="staff-table orders-table">
-      <div className="table-head"><span>Заказ</span><span>Покупатель</span><span>Сумма</span><span>Статус</span><span>Экспорт</span><span>Действия</span></div>
+      <div className="table-head"><span>Заказ</span><span>Покупатель</span><span>Сумма</span><span>Статус</span><span>Экспорт</span><span>Счёт</span><span>Действия</span></div>
       {orders.map((order) => (
         <div className="table-row" key={order.id}>
           <span><strong>{order.number}</strong></span>
@@ -52,10 +53,14 @@ export function OrdersPanel() {
           <span className="status">
             {order.export ? <><b className={'export-' + order.export.status.toLowerCase()}>{order.export.status}</b>{order.export.lastError ? <small title={order.export.lastError}>ошибка</small> : null}</> : '—'}
           </span>
+          <span className="status">
+            {order.invoice ? <><a href={`/api/orders/${order.id}/invoice/pdf`} target="_blank" rel="noreferrer">{order.invoice.number}</a>{order.invoice.version > 1 ? <small>v{order.invoice.version}</small> : null}</> : '—'}
+          </span>
           <span className="moderation-actions">
             {(NEXT[order.status] ?? []).map((to) => <button key={to} type="button" disabled={busyId === order.id} onClick={() => act(order.id, `/api/staff/orders/${order.id}/status`, { to })}>{to}</button>)}
             {order.export && order.export.status !== 'SUCCESS' ? <button type="button" disabled={busyId === order.id} onClick={() => act(order.id, `/api/staff/orders/${order.id}/export/retry`)}>Retry экспорт</button> : null}
             {order.export?.externalId ? <button type="button" disabled={busyId === order.id} onClick={() => act(order.id, `/api/staff/orders/${order.id}/reconcile`)}>Reconcile</button> : null}
+            {order.status !== 'DRAFT' && order.status !== 'CANCELLED' ? <button type="button" disabled={busyId === order.id} onClick={() => act(order.id, `/api/staff/orders/${order.id}/invoice`)}>{order.invoice ? 'Перевыпустить счёт' : 'Выставить счёт'}</button> : null}
           </span>
         </div>
       ))}

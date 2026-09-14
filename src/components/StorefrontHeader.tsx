@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { Menu, Search, ShoppingCart, UserRound, X } from 'lucide-react'
+import { Menu, Package, Search, ShoppingCart, UserRound, X } from 'lucide-react'
 import { useState } from 'react'
 import { PaletteSwitcher } from '@/components/PaletteSwitcher'
 import { brands, categories } from '@/lib/demo-data'
@@ -33,6 +33,7 @@ export function StorefrontHeader() {
           <strong>+7 (000) 000-00-00</strong>
         </div>
         <PaletteSwitcher />
+        <Link className="header-icon" href="/account/orders" aria-label="Мои заказы"><Package /></Link>
         <Link className="header-icon" href="/account/locations" aria-label="Личный кабинет"><UserRound /></Link>
         <button className="cart-button" onClick={() => setCartOpen(true)} aria-label="Открыть корзину">
           <ShoppingCart /><span>{total.toLocaleString('ru-RU')} ₽</span>{count > 0 ? <b>{count}</b> : null}

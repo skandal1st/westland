@@ -14,9 +14,9 @@ export async function GET() {
     where: { storeId: user.storeId, userId: user.id },
     orderBy: { createdAt: 'desc' },
     take: 100,
-    select: { id: true, number: true, status: true, total: true, currency: true, createdAt: true, export: { select: { status: true, externalId: true } } },
+    select: { id: true, number: true, status: true, total: true, currency: true, createdAt: true, export: { select: { status: true, externalId: true } }, invoices: { where: { status: 'ISSUED' }, select: { id: true }, take: 1 } },
   })
   return NextResponse.json({
-    orders: orders.map((o) => ({ id: o.id, number: o.number, status: o.status, total: Number(o.total), currency: o.currency, createdAt: o.createdAt, export: o.export?.status ?? null })),
+    orders: orders.map((o) => ({ id: o.id, number: o.number, status: o.status, total: Number(o.total), currency: o.currency, createdAt: o.createdAt, export: o.export?.status ?? null, hasInvoice: o.invoices.length > 0 })),
   })
 }

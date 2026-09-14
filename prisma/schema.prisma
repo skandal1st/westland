@@ -510,7 +510,7 @@ model Order {
   currency   String             @default("RUB")
   comment    String             @default("")
   items      OrderItem[]
-  invoice    Invoice?
+  invoices   Invoice[]
   export     OrderExport?
   createdAt  DateTime           @default(now())
   updatedAt  DateTime           @updatedAt
@@ -593,14 +593,50 @@ model OrderExport {
   @@index([storeId, status])
 }
 
+// An issued invoice is an immutable financial document. The seller/buyer
+// requisites, VAT and line amounts are SNAPSHOTTED at issue time — later
+// changes to the store's seller requisites or the order never alter an invoice
+// already issued. A reissue creates a NEW row (version + 1) and VOIDs the
+// previous one; old rows/lines are never mutated. `sellerSnapshot`/
+// `buyerSnapshot` are nullable only to keep the migration additive — issued
+// invoices always carry them; a null snapshot marks a legacy row.
 model Invoice {
-  id       String        @id @default(cuid())
-  orderId  String        @unique
-  order    Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  number   String        @unique
-  status   InvoiceStatus @default(ISSUED)
-  issuedAt DateTime      @default(now())
-  pdfPath  String?
+  id             String        @id @default(cuid())
+  storeId        String
+  orderId        String
+  order          Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  number         String        @unique
+  version        Int           @default(1)
+  status         InvoiceStatus @default(ISSUED)
+  sellerSnapshot Json?
+  buyerSnapshot  Json?
+  subtotal       Decimal       @default(0) @db.Decimal(18, 2)
+  vatRate        Decimal?      @db.Decimal(6, 3)
+  vatAmount      Decimal       @default(0) @db.Decimal(18, 2)
+  total          Decimal       @default(0) @db.Decimal(18, 2)
+  currency       String        @default("RUB")
+  lines          InvoiceLine[]
+  issuedAt       DateTime      @default(now())
+  pdfPath        String?
+
+  @@unique([orderId, version])
+  @@index([storeId, status])
+}
+
+// Immutable per-line snapshot of the order at the moment the invoice was issued.
+model InvoiceLine {
+  id        String  @id @default(cuid())
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  position  Int
+  sku       String
+  name      String
+  packaging String  @default("")
+  quantity  Decimal @db.Decimal(18, 3)
+  unitPrice Decimal @db.Decimal(18, 2)
+  lineTotal Decimal @db.Decimal(18, 2)
+
+  @@unique([invoiceId, position])
 }
 
 model SiteBanner {

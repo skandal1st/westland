@@ -5,6 +5,7 @@ tsconfig.tsbuildinfo
 .env.local
 coverage
 public/uploads
+.media
 .impeccable/review
 .impeccable/build
 deployment

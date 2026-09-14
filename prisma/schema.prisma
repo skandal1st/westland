@@ -78,6 +78,14 @@ enum OutboxStatus {
   FAILED
 }
 
+enum IntegrationJobStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  RETRYING
+}
+
 model Store {
   id           String                  @id @default(cuid())
   slug         String                  @unique
@@ -477,11 +485,13 @@ model IntegrationConnection {
   name       String
   enabled    Boolean             @default(false)
   config     Json?
-  references ExternalReference[]
-  cursors    SyncCursor[]
-  runs       SyncRun[]
-  createdAt  DateTime            @default(now())
-  updatedAt  DateTime            @updatedAt
+  references  ExternalReference[]
+  cursors     SyncCursor[]
+  runs        SyncRun[]
+  jobs        IntegrationJob[]
+  checkpoints SyncCheckpoint[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
 
   @@unique([storeId, provider, name])
 }
@@ -538,6 +548,96 @@ model OutboxEvent {
   createdAt   DateTime     @default(now())
 
   @@index([status, availableAt])
+}
+
+// Durable unit of integration work. Authoritative state lives in PostgreSQL
+// (no broker). Jobs are idempotent (unique idempotencyKey), retried up to
+// maxAttempts, and resumable after restart via SyncCheckpoint.
+model IntegrationJob {
+  id             String               @id @default(cuid())
+  storeId        String
+  connectionId   String
+  connection     IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  type           String
+  idempotencyKey String               @unique
+  status         IntegrationJobStatus @default(PENDING)
+  payload        Json?
+  attempts       Int                  @default(0)
+  maxAttempts    Int                  @default(5)
+  availableAt    DateTime             @default(now())
+  lastError      String?
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  attemptsLog    IntegrationAttempt[]
+  errors         IntegrationError[]
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@index([status, availableAt])
+  @@index([connectionId, type])
+}
+
+model IntegrationAttempt {
+  id         String               @id @default(cuid())
+  jobId      String
+  job        IntegrationJob       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  attempt    Int
+  status     IntegrationJobStatus
+  stats      Json?
+  error      String?
+  startedAt  DateTime             @default(now())
+  finishedAt DateTime?
+
+  @@index([jobId])
+}
+
+// Persisted integration errors for observability / DLQ inspection and retry.
+model IntegrationError {
+  id           String          @id @default(cuid())
+  storeId      String
+  connectionId String?
+  jobId        String?
+  job          IntegrationJob? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  code         String
+  message      String
+  context      Json?
+  createdAt    DateTime        @default(now())
+
+  @@index([storeId, createdAt])
+  @@index([connectionId, createdAt])
+}
+
+// Cross-job resume marker for page-based import. Survives restarts so a new run
+// continues where the previous left off.
+model SyncCheckpoint {
+  id             String                @id @default(cuid())
+  connectionId   String
+  connection     IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  entityType     String
+  cursor         String?
+  page           Int                   @default(0)
+  processed      Int                   @default(0)
+  completed      Boolean               @default(false)
+  lastExternalId String?
+  updatedAt      DateTime              @updatedAt
+
+  @@unique([connectionId, entityType])
+}
+
+// Inbound idempotency ledger: an external item already processed with the same
+// fingerprint is skipped on re-import.
+model Inbox {
+  id           String   @id @default(cuid())
+  storeId      String
+  connectionId String
+  entityType   String
+  externalId   String
+  fingerprint  String
+  status       String   @default("PROCESSED")
+  receivedAt   DateTime @default(now())
+
+  @@unique([connectionId, entityType, externalId])
+  @@index([storeId, entityType])
 }
 
 // A B2B access application, kept separate from the activated User so the

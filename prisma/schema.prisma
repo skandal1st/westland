@@ -94,6 +94,7 @@ model Store {
   users        User[]
   customers    Customer[]
   priceGroups  PriceGroup[]
+  priceBooks   PriceBook[]
   categories   Category[]
   brands       Brand[]
   products     Product[]
@@ -166,6 +167,7 @@ model Customer {
   locations   CustomerLocation[]
   orders      Order[]
   registrationRequests RegistrationRequest[]
+  priceAssignment BuyerPriceAssignment?
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
 
@@ -191,18 +193,21 @@ model CustomerLocation {
 }
 
 model PriceGroup {
-  id       String         @id @default(cuid())
-  storeId  String
-  store    Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  name     String
-  code     String
-  priority Int            @default(100)
-  users    User[]
-  prices   ProductPrice[]
+  id          String     @id @default(cuid())
+  storeId     String
+  store       Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  name        String
+  code        String
+  priority    Int        @default(100)
+  priceBookId String?
+  priceBook   PriceBook? @relation(fields: [priceBookId], references: [id], onDelete: SetNull)
+  users       User[]
   fulfillmentChannels FulfillmentChannel[]
   registrationRequests RegistrationRequest[]
+  assignments BuyerPriceAssignment[]
 
   @@unique([storeId, code])
+  @@index([priceBookId])
 }
 
 model Category {
@@ -250,8 +255,6 @@ model Product {
   status        ProductStatus           @default(DRAFT)
   variants      ProductVariant[]
   content       CommerceProductContent?
-  prices        ProductPrice[]
-  stocks        Stock[]
   orderItems    OrderItem[]
   createdAt     DateTime                @default(now())
   updatedAt     DateTime                @updatedAt
@@ -274,6 +277,9 @@ model ProductVariant {
   status       ProductStatus       @default(ACTIVE)
   sortOrder    Int                 @default(0)
   identifiers  ProductIdentifier[]
+  prices       PriceEntry[]
+  stocks       Stock[]
+  availability AvailabilityProjection[]
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
 
@@ -337,16 +343,58 @@ model ProviderSnapshot {
   @@index([entityType, externalId, sourceFingerprint])
 }
 
-model ProductPrice {
-  id           String     @id @default(cuid())
-  productId    String
-  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
-  priceGroupId String
-  priceGroup   PriceGroup @relation(fields: [priceGroupId], references: [id], onDelete: Cascade)
-  amount       Decimal    @db.Decimal(18, 2)
-  currency     String     @default("RUB")
+// A named price list. The applicable book for a context is resolved as
+// channel.priceBook -> group.priceBook -> store default, then a PriceEntry for
+// the variant gives the amount. Price is thus a function of context, never a
+// single Product.price.
+model PriceBook {
+  id        String       @id @default(cuid())
+  storeId   String
+  store     Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  code      String
+  name      String
+  currency  String       @default("RUB")
+  isDefault Boolean      @default(false)
+  entries   PriceEntry[]
+  groups    PriceGroup[]
+  channels  FulfillmentChannel[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
 
-  @@unique([productId, priceGroupId])
+  @@unique([storeId, code])
+}
+
+model PriceEntry {
+  id            String         @id @default(cuid())
+  priceBookId   String
+  priceBook     PriceBook      @relation(fields: [priceBookId], references: [id], onDelete: Cascade)
+  variantId     String
+  variant       ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  amount        Decimal        @db.Decimal(18, 2)
+  effectiveFrom DateTime?
+  effectiveTo   DateTime?
+  updatedAt     DateTime       @updatedAt
+
+  @@unique([priceBookId, variantId])
+  @@index([variantId])
+}
+
+// Authoritative buyer -> price group assignment (one active group per customer),
+// replacing the ad-hoc User.priceGroupId. Resolution prefers this; User.priceGroupId
+// remains a compatibility fallback.
+model BuyerPriceAssignment {
+  id           String     @id @default(cuid())
+  storeId      String
+  customerId   String     @unique
+  customer     Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  priceGroupId String
+  priceGroup   PriceGroup @relation(fields: [priceGroupId], references: [id], onDelete: Restrict)
+  assignedById String?
+  updatedAt    DateTime   @updatedAt
+  createdAt    DateTime   @default(now())
+
+  @@index([storeId])
+  @@index([priceGroupId])
 }
 
 model InventoryLocation {
@@ -370,12 +418,17 @@ model FulfillmentChannel {
   inventoryLocation   InventoryLocation @relation(fields: [inventoryLocationId], references: [id], onDelete: Restrict)
   priceGroupId        String?
   priceGroup          PriceGroup?       @relation(fields: [priceGroupId], references: [id], onDelete: SetNull)
+  priceBookId         String?
+  priceBook           PriceBook?        @relation(fields: [priceBookId], references: [id], onDelete: SetNull)
   code                String
   name                String
   paymentMethod       PaymentMethod
+  sellerLegalEntity   Json?
+  invoiceProfile      Json?
   isActive            Boolean           @default(true)
   sortOrder           Int               @default(0)
   orders              Order[]
+  availability        AvailabilityProjection[]
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
 
@@ -383,19 +436,40 @@ model FulfillmentChannel {
   @@index([storeId, paymentMethod, isActive])
   @@index([inventoryLocationId])
   @@index([priceGroupId])
+  @@index([priceBookId])
 }
 
+// Raw per-location quantity imported from the provider. This is the SOURCE for
+// AvailabilityProjection — the storefront reads the projection, not this.
 model Stock {
-  id         String            @id @default(cuid())
-  productId  String
-  product    Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
-  locationId String
-  location   InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
-  available  Decimal           @db.Decimal(18, 3)
-  reserved   Decimal           @default(0) @db.Decimal(18, 3)
-  updatedAt  DateTime          @updatedAt
+  id              String            @id @default(cuid())
+  variantId       String
+  variant         ProductVariant    @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  locationId      String
+  location        InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  available       Decimal           @db.Decimal(18, 3)
+  reserved        Decimal           @default(0) @db.Decimal(18, 3)
+  sourceUpdatedAt DateTime?
+  updatedAt       DateTime          @updatedAt
 
-  @@unique([productId, locationId])
+  @@unique([variantId, locationId])
+}
+
+// Storefront-facing availability per (variant, channel), decoupled from live
+// provider calls. `sourceUpdatedAt` lets the UI flag staleness; a provider
+// outage never blocks the storefront — the last projection is served.
+model AvailabilityProjection {
+  id                   String             @id @default(cuid())
+  variantId            String
+  variant              ProductVariant     @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  fulfillmentChannelId String
+  fulfillmentChannel   FulfillmentChannel @relation(fields: [fulfillmentChannelId], references: [id], onDelete: Cascade)
+  availableQuantity    Decimal            @db.Decimal(18, 3)
+  sourceUpdatedAt      DateTime?
+  updatedAt            DateTime           @updatedAt
+
+  @@unique([variantId, fulfillmentChannelId])
+  @@index([fulfillmentChannelId])
 }
 
 model Order {

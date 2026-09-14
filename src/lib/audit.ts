@@ -11,6 +11,8 @@ export const AuditAction = {
   UserSuspended: 'UserSuspended',
   UserReactivated: 'UserReactivated',
   ProductContentUpdated: 'ProductContentUpdated',
+  PriceGroupChanged: 'PriceGroupChanged',
+  FulfillmentChannelChanged: 'FulfillmentChannelChanged',
 } as const
 
 export type AuditActionName = (typeof AuditAction)[keyof typeof AuditAction] | (string & {})

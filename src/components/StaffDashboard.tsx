@@ -6,6 +6,7 @@ import { signOut, useSession } from 'next-auth/react'
 import { useCallback, useEffect, useState } from 'react'
 import { CatalogAdminPanel } from '@/components/CatalogAdminPanel'
 import { IntegrationsPanel } from '@/components/IntegrationsPanel'
+import { CommercePanel } from '@/components/CommercePanel'
 import { useStoreProfile } from '@/lib/store-profile-context'
 
 // Orders/banners remain demonstrative until their milestones (M7/M9).
@@ -33,6 +34,8 @@ export function StaffDashboard() {
   const profile = useStoreProfile()
   const [section, setSection] = useState('Модерация')
   const [registrations, setRegistrations] = useState<PendingRequest[]>([])
+  const [priceGroups, setPriceGroups] = useState<{ id: string; name: string }[]>([])
+  const [groupChoice, setGroupChoice] = useState<Record<string, string>>({})
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const loadPending = useCallback(async () => {
@@ -45,16 +48,17 @@ export function StaffDashboard() {
 
   useEffect(() => {
     loadPending()
+    fetch('/api/staff/commerce').then((r) => (r.ok ? r.json() : null)).then((data) => { if (data) setPriceGroups(data.priceGroups ?? []) })
   }, [loadPending])
 
   const moderate = async (id: string, action: 'approve' | 'reject') => {
     setBusyId(id)
     try {
-      const body = action === 'reject' ? JSON.stringify({ comment: 'Отклонено сотрудником' }) : undefined
+      const payload = action === 'reject' ? { comment: 'Отклонено сотрудником' } : { priceGroupId: groupChoice[id] || undefined }
       const response = await fetch(`/api/staff/registrations/${id}/${action}`, {
         method: 'POST',
-        headers: body ? { 'content-type': 'application/json' } : undefined,
-        body,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
       })
       if (response.ok) await loadPending()
     } finally {
@@ -90,6 +94,10 @@ export function StaffDashboard() {
                 <span><strong>{item.contactName}</strong><small>{item.email}</small></span>
                 <span>{item.inn}</span>
                 <span className="moderation-actions">
+                  <select aria-label="Ценовая группа" value={groupChoice[item.id] ?? ''} onChange={(event) => setGroupChoice((prev) => ({ ...prev, [item.id]: event.target.value }))}>
+                    <option value="">— группа —</option>
+                    {priceGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+                  </select>
                   <button type="button" disabled={busyId === item.id} aria-label={'Одобрить ' + item.legalName} onClick={() => moderate(item.id, 'approve')}><Check /> Одобрить</button>
                   <button type="button" disabled={busyId === item.id} aria-label={'Отклонить ' + item.legalName} onClick={() => moderate(item.id, 'reject')}><X /> Отклонить</button>
                 </span>
@@ -102,9 +110,11 @@ export function StaffDashboard() {
 
         {section === 'Интеграции' ? <IntegrationsPanel /> : null}
 
+        {section === 'Ценовые группы' || section === 'Склады' || section === 'Клиенты' ? <CommercePanel /> : null}
+
         {section === 'Баннеры' ? <div className="banner-admin-list"><div><strong>Баннер</strong><strong>Показывается для</strong><strong>Статус</strong></div>{banners.map((banner) => <button type="button" key={banner[0]}><span className="banner-admin-preview"><ImageIcon /></span><span><strong>{banner[0]}</strong><small>Desktop и mobile изображения</small></span><span>{banner[1]}</span><b>{banner[2]}</b><ChevronRight /></button>)}</div> : null}
 
-        {section !== 'Заказы' && section !== 'Модерация' && section !== 'Баннеры' && section !== 'Товары' && section !== 'Интеграции' ? <div className="staff-placeholder"><h2>{section}</h2><p>{section === 'Клиенты' ? 'Здесь видны подтверждённые компании, их пользователи и точки доставки.' : section === 'Склады' ? 'Каналы наличной и безналичной оплаты связаны со своими складами, ассортиментом и остатками.' : 'Раздел подготовлен в архитектуре и будет подключён к базе данных на следующем этапе.'}</p></div> : null}
+        {section === 'Настройки' ? <div className="staff-placeholder"><h2>Настройки</h2><p>Раздел подготовлен в архитектуре и будет подключён на следующем этапе.</p></div> : null}
       </section>
     </main>
   )

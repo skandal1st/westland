@@ -19,6 +19,10 @@ export interface OperationalProvider {
   healthcheck(): Promise<{ ok: boolean; message?: string }>
   /** One page of raw product payloads. `cursor` is opaque and provider-defined. */
   pullProducts(cursor?: string): Promise<ProviderPage>
+  /** One page of raw price payloads (M5). Optional until a provider supplies prices. */
+  pullPrices?(cursor?: string): Promise<ProviderPage>
+  /** One page of raw availability payloads (M5). */
+  pullAvailability?(cursor?: string): Promise<ProviderPage>
 }
 
 export class ProviderNotConfiguredError extends Error {

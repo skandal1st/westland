@@ -115,6 +115,14 @@ export async function approveRegistration(
       },
     })
 
+    if (options.priceGroupId) {
+      await tx.buyerPriceAssignment.upsert({
+        where: { customerId: customer.id },
+        update: { priceGroupId: options.priceGroupId, assignedById: options.actor?.id ?? null },
+        create: { storeId: request.storeId, customerId: customer.id, priceGroupId: options.priceGroupId, assignedById: options.actor?.id ?? null },
+      })
+    }
+
     await recordAudit(tx, {
       storeId: request.storeId,
       actor: options.actor,

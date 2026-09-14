@@ -1,10 +1,14 @@
 import type { IntegrationConnection, IntegrationJob, PrismaClient } from '@prisma/client'
 import { prisma as defaultPrisma } from '@/lib/db'
 import { importCatalog } from '@/lib/integrations/import-catalog'
+import { importPrices } from '@/lib/integrations/import-prices'
+import { importAvailability } from '@/lib/integrations/import-availability'
 import { getProvider } from '@/lib/integrations/registry'
 import type { OperationalProvider } from '@/lib/integrations/provider'
 
 export const JOB_CATALOG_IMPORT = 'catalog.import'
+export const JOB_PRICES_IMPORT = 'prices.import'
+export const JOB_AVAILABILITY_IMPORT = 'availability.import'
 const BASE_BACKOFF_MS = 1_000
 
 type HandlerDeps = { prisma: PrismaClient; job: IntegrationJob; provider: OperationalProvider }
@@ -13,6 +17,12 @@ type Handler = (deps: HandlerDeps) => Promise<Record<string, unknown>>
 const handlers: Record<string, Handler> = {
   [JOB_CATALOG_IMPORT]: async ({ prisma, job, provider }) => {
     return importCatalog({ storeId: job.storeId, connectionId: job.connectionId, provider }, prisma) as Promise<Record<string, unknown>>
+  },
+  [JOB_PRICES_IMPORT]: async ({ prisma, job, provider }) => {
+    return importPrices({ storeId: job.storeId, connectionId: job.connectionId, provider }, prisma) as Promise<Record<string, unknown>>
+  },
+  [JOB_AVAILABILITY_IMPORT]: async ({ prisma, job, provider }) => {
+    return importAvailability({ storeId: job.storeId, connectionId: job.connectionId, provider }, prisma) as Promise<Record<string, unknown>>
   },
 }
 

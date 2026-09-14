@@ -31,7 +31,7 @@ describe('GET /api/catalog', () => {
   it('returns assembled items for an authenticated user', async () => {
     mockedUser.mockResolvedValue({ id: 'u1', email: 'b@x.io', name: 'B', role: 'BUYER', status: 'ACTIVE', storeId: 's1', customerId: null, priceGroupId: null })
     mockedStore.mockResolvedValue({ id: 's1' } as any)
-    mockedList.mockResolvedValue({ items: [{ productId: 'p1', slug: 's', displayName: 'D', description: '', imageUrls: [], sku: 'SKU', packaging: '', categoryId: null, brandId: null }], total: 1 })
+    mockedList.mockResolvedValue({ items: [{ productId: 'p1', variantId: 'v1', slug: 's', displayName: 'D', description: '', imageUrls: [], sku: 'SKU', packaging: '', categoryId: null, brandId: null, price: { amount: 100, currency: 'RUB' }, availability: { available: 5, stale: false } }], total: 1 })
     const res = await GET(req())
     expect(res.status).toBe(200)
     const body = await res.json()

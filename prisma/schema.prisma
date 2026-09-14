@@ -225,32 +225,108 @@ model Brand {
   @@unique([storeId, slug])
 }
 
+// Canonical product identity. Holds NO storefront content — display name,
+// descriptions, images, SEO and merchandising live in CommerceProductContent
+// (the commerce-owned overlay) and are never overwritten by provider sync.
+// The `id` is stable and is the canonical key mapped to a provider via
+// ExternalReference, so swapping the operational provider never migrates IDs.
 model Product {
-  id           String         @id @default(cuid())
+  id            String                  @id @default(cuid())
+  storeId       String
+  store         Store                   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  categoryId    String?
+  category      Category?               @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  brandId       String?
+  brand         Brand?                  @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  canonicalName String
+  status        ProductStatus           @default(DRAFT)
+  variants      ProductVariant[]
+  content       CommerceProductContent?
+  prices        ProductPrice[]
+  stocks        Stock[]
+  orderItems    OrderItem[]
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+
+  @@index([storeId, status])
+  @@index([categoryId])
+  @@index([brandId])
+}
+
+// Sellable unit (SKU). Canonical/operational attributes only.
+model ProductVariant {
+  id           String              @id @default(cuid())
   storeId      String
-  store        Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  categoryId   String?
-  category     Category?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  brandId      String?
-  brand        Brand?         @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  productId    String
+  product      Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
   sku          String
-  name         String
-  slug         String
-  status       ProductStatus  @default(DRAFT)
-  description  String         @default("")
-  packaging    String         @default("")
-  unitsPerPack Int            @default(1)
-  imageUrls    String[]
-  importedData Json?
-  contentData  Json?
-  prices       ProductPrice[]
-  stocks       Stock[]
-  orderItems   OrderItem[]
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  packaging    String              @default("")
+  unitsPerPack Int                 @default(1)
+  isDefault    Boolean             @default(true)
+  status       ProductStatus       @default(ACTIVE)
+  sortOrder    Int                 @default(0)
+  identifiers  ProductIdentifier[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
 
   @@unique([storeId, sku])
+  @@index([productId])
+}
+
+// Barcodes / articles that identify a SKU across systems.
+model ProductIdentifier {
+  id        String         @id @default(cuid())
+  variantId String
+  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  type      String
+  value     String
+  createdAt DateTime       @default(now())
+
+  @@unique([variantId, type, value])
+  @@index([type, value])
+}
+
+// Commerce-owned storefront overlay (1:1 with a canonical product). Edits by
+// staff survive provider normalization — sync updates canonical identity, never
+// these fields ("overlay wins").
+model CommerceProductContent {
+  id             String   @id @default(cuid())
+  storeId        String
+  productId      String   @unique
+  product        Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  displayName    String
+  slug           String
+  description    String   @default("")
+  imageUrls      String[]
+  seoTitle       String?
+  seoDescription String?
+  attributes     Json?
+  updatedById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
   @@unique([storeId, slug])
+  @@index([storeId])
+}
+
+// Raw, normalizable provider snapshot kept separate from canonical data so we
+// can always prove what the provider sent and which normalizer processed it.
+model ProviderSnapshot {
+  id                   String    @id @default(cuid())
+  storeId              String
+  connectionId         String?
+  entityType           String
+  externalId           String
+  sourceFingerprint    String
+  providerVersion      String?
+  sourceUpdatedAt      DateTime?
+  receivedAt           DateTime  @default(now())
+  normalizationVersion String
+  payload              Json
+  createdAt            DateTime  @default(now())
+
+  @@index([storeId, entityType, externalId])
+  @@index([entityType, externalId, sourceFingerprint])
 }
 
 model ProductPrice {

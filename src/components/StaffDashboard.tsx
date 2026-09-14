@@ -4,6 +4,7 @@ import NextImage from 'next/image'
 import { Banknote, Boxes, Building2, Check, ChevronRight, CircleUserRound, ClipboardList, Image as ImageIcon, PackageCheck, Settings, ShoppingBag, Users, X } from 'lucide-react'
 import { signOut, useSession } from 'next-auth/react'
 import { useCallback, useEffect, useState } from 'react'
+import { CatalogAdminPanel } from '@/components/CatalogAdminPanel'
 import { useStoreProfile } from '@/lib/store-profile-context'
 
 // Orders/banners remain demonstrative until their milestones (M7/M9).
@@ -96,9 +97,11 @@ export function StaffDashboard() {
           </div>
         ) : null}
 
+        {section === 'Товары' ? <CatalogAdminPanel /> : null}
+
         {section === 'Баннеры' ? <div className="banner-admin-list"><div><strong>Баннер</strong><strong>Показывается для</strong><strong>Статус</strong></div>{banners.map((banner) => <button type="button" key={banner[0]}><span className="banner-admin-preview"><ImageIcon /></span><span><strong>{banner[0]}</strong><small>Desktop и mobile изображения</small></span><span>{banner[1]}</span><b>{banner[2]}</b><ChevronRight /></button>)}</div> : null}
 
-        {section !== 'Заказы' && section !== 'Модерация' && section !== 'Баннеры' ? <div className="staff-placeholder"><h2>{section}</h2><p>{section === 'Товары' ? 'Сотрудники дополняют импортированные позиции: изображения, фасовка, описание, бренд и цены.' : section === 'Клиенты' ? 'Здесь видны подтверждённые компании, их пользователи и точки доставки.' : section === 'Склады' ? 'Каналы наличной и безналичной оплаты связаны со своими складами, ассортиментом и остатками.' : section === 'Интеграции' ? 'Подключения 1С, МойСклад и других провайдеров работают через единый контракт.' : 'Раздел подготовлен в архитектуре и будет подключён к базе данных на следующем этапе.'}</p></div> : null}
+        {section !== 'Заказы' && section !== 'Модерация' && section !== 'Баннеры' && section !== 'Товары' ? <div className="staff-placeholder"><h2>{section}</h2><p>{section === 'Клиенты' ? 'Здесь видны подтверждённые компании, их пользователи и точки доставки.' : section === 'Склады' ? 'Каналы наличной и безналичной оплаты связаны со своими складами, ассортиментом и остатками.' : section === 'Интеграции' ? 'Подключения 1С, МойСклад и других провайдеров работают через единый контракт.' : 'Раздел подготовлен в архитектуре и будет подключён к базе данных на следующем этапе.'}</p></div> : null}
       </section>
     </main>
   )

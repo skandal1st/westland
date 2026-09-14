@@ -10,6 +10,7 @@ export const AuditAction = {
   RegistrationRejected: 'RegistrationRejected',
   UserSuspended: 'UserSuspended',
   UserReactivated: 'UserReactivated',
+  ProductContentUpdated: 'ProductContentUpdated',
 } as const
 
 export type AuditActionName = (typeof AuditAction)[keyof typeof AuditAction] | (string & {})

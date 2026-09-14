@@ -1,12 +1,14 @@
 'use client'
 
-import { Banknote, CreditCard, Filter, Plus, SlidersHorizontal } from 'lucide-react'
+import { Banknote, CreditCard, Filter, Minus, Plus, SlidersHorizontal } from 'lucide-react'
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { useCart } from '@/lib/cart/cart-context'
 
 type Channel = { id: string; code: string; name: string; paymentMethod: 'BANK_TRANSFER' | 'CASH' }
 
 type CatalogItem = {
   productId: string
+  variantId: string | null
   slug: string
   displayName: string
   description: string
@@ -17,22 +19,23 @@ type CatalogItem = {
 }
 
 export function CatalogClient() {
+  const { view, setChannel, setItem, quantityOf } = useCart()
   const [channels, setChannels] = useState<Channel[]>([])
-  const [channelId, setChannelId] = useState<string>('')
   const [items, setItems] = useState<CatalogItem[]>([])
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
   const [filtersOpen, setFiltersOpen] = useState(false)
   const deferredQuery = useDeferredValue(query)
+  const channelId = view.channelId
 
   useEffect(() => {
     fetch('/api/channels')
       .then((r) => (r.ok ? r.json() : { channels: [] }))
       .then((data) => {
         setChannels(data.channels ?? [])
-        setChannelId((current) => current || data.channels?.[0]?.id || '')
+        if (!view.channelId && data.channels?.[0]) setChannel(data.channels[0].id)
       })
-  }, [])
+  }, [view.channelId, setChannel])
 
   useEffect(() => {
     let active = true
@@ -61,13 +64,13 @@ export function CatalogClient() {
         <div><strong id="payment-choice-title">Канал получения</strong><span>Цена и остатки зависят от выбранного канала</span></div>
         <div className="fulfillment-options" role="radiogroup" aria-label="Канал получения и оплаты">
           {channels.length === 0 ? <small>Каналы не настроены — обратитесь к менеджеру.</small> : channels.map((channel) => (
-            <button key={channel.id} type="button" role="radio" aria-checked={channelId === channel.id} className={channelId === channel.id ? 'selected' : ''} onClick={() => setChannelId(channel.id)}>
+            <button key={channel.id} type="button" role="radio" aria-checked={channelId === channel.id} className={channelId === channel.id ? 'selected' : ''} onClick={() => setChannel(channel.id)}>
               {channel.paymentMethod === 'CASH' ? <Banknote /> : <CreditCard />}
               <span><b>{channel.name}</b><small>{channel.paymentMethod === 'CASH' ? 'Наличный расчёт' : 'Безналичный расчёт'}</small></span>
             </button>
           ))}
         </div>
-        {activeChannel ? <p>Выбранный канал: <strong>{activeChannel.name}</strong>.</p> : null}
+        {activeChannel ? <p>Выбранный канал: <strong>{activeChannel.name}</strong>. При смене канала цена и остатки пересчитываются.</p> : null}
       </section>
       <div className="catalog-heading">
         <div><h1>Каталог</h1><p>Цена — по вашей ценовой группе; остаток — проекция выбранного канала.</p></div>
@@ -84,24 +87,28 @@ export function CatalogClient() {
           <div className="product-list">
             {loading ? <div className="product-list-hint">Загрузка каталога…</div> : null}
             {!loading && visible.length === 0 ? <div className="product-list-hint">Каталог пуст — товары появятся после импорта из учётной системы.</div> : null}
-            {visible.map((item) => (
-              <article className="product-row" key={item.productId}>
-                <div className="product-row-info">
-                  {item.sku ? <span className="product-brand"><i aria-hidden="true" />{item.sku}</span> : null}
-                  <h2>{item.displayName}</h2>
-                  <p>
-                    {item.packaging ? item.packaging + ' · ' : ''}
-                    {item.availability ? `${item.availability.available} шт.${item.availability.stale ? ' (данные устаревают)' : ''}` : 'остаток уточняется'}
-                  </p>
-                </div>
-                <div className="product-row-actions">
-                  <div className="quantity quantity-large">
-                    <button type="button" aria-label={'Добавить ' + item.displayName} disabled title="Оформление заказа — M6"><Plus /></button>
+            {visible.map((item) => {
+              const quantity = item.variantId ? quantityOf(item.variantId) : 0
+              const available = item.availability?.available ?? null
+              const canAdd = Boolean(item.variantId && item.price && (available == null || quantity < available))
+              return (
+                <article className={'product-row ' + (quantity > 0 ? 'in-cart' : '')} key={item.productId}>
+                  <div className="product-row-info">
+                    {item.sku ? <span className="product-brand"><i aria-hidden="true" />{item.sku}</span> : null}
+                    <h2>{item.displayName}</h2>
+                    <p>{item.packaging ? item.packaging + ' · ' : ''}{available != null ? `${available} шт.${item.availability?.stale ? ' (устаревает)' : ''}` : 'остаток уточняется'}</p>
                   </div>
-                </div>
-                <strong className="product-price">{item.price ? `${item.price.amount.toLocaleString('ru-RU')} ${item.price.currency === 'RUB' ? '₽' : item.price.currency}` : '—'}</strong>
-              </article>
-            ))}
+                  <div className="product-row-actions">
+                    <div className="quantity quantity-large">
+                      <button type="button" aria-label={'Уменьшить ' + item.displayName} disabled={quantity === 0} onClick={() => item.variantId && setItem(item.variantId, quantity - 1)}><Minus /></button>
+                      <span>{quantity}</span>
+                      <button type="button" aria-label={'Добавить ' + item.displayName} disabled={!canAdd} title={!item.price ? 'Нет цены для вашей группы' : undefined} onClick={() => item.variantId && setItem(item.variantId, quantity + 1)}><Plus /></button>
+                    </div>
+                  </div>
+                  <strong className="product-price">{item.price ? `${item.price.amount.toLocaleString('ru-RU')} ${item.price.currency === 'RUB' ? '₽' : item.price.currency}` : '—'}</strong>
+                </article>
+              )
+            })}
           </div>
         </section>
       </div>

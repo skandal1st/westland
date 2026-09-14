@@ -7,15 +7,13 @@ import { useState } from 'react'
 import { PaletteSwitcher } from '@/components/PaletteSwitcher'
 import { brands, categories } from '@/lib/demo-data'
 import { useStoreProfile } from '@/lib/store-profile-context'
-import { useCart } from '@/store/cart-store'
+import { useCart } from '@/lib/cart/cart-context'
 
 export function StorefrontHeader() {
   const profile = useStoreProfile()
   const [menuOpen, setMenuOpen] = useState(false)
-  const lines = useCart((state) => state.lines)
-  const setCartOpen = useCart((state) => state.setOpen)
-  const count = lines.reduce((sum, line) => sum + line.quantity, 0)
-  const total = lines.reduce((sum, line) => sum + line.quantity * line.product.price, 0)
+  const { view, count, setOpen: setCartOpen } = useCart()
+  const total = view.total
   return (
     <header className="site-header">
       <div className="header-inner">

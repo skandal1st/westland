@@ -2,6 +2,7 @@
 
 import { SessionProvider } from 'next-auth/react'
 import { StoreProfileProvider } from '@/lib/store-profile-context'
+import { CartProvider } from '@/lib/cart/cart-context'
 import type { PublicStoreProfile } from '@/lib/store-profile'
 
 export function Providers({
@@ -13,7 +14,9 @@ export function Providers({
 }) {
   return (
     <SessionProvider>
-      <StoreProfileProvider profile={profile}>{children}</StoreProfileProvider>
+      <StoreProfileProvider profile={profile}>
+        <CartProvider>{children}</CartProvider>
+      </StoreProfileProvider>
     </SessionProvider>
   )
 }

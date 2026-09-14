@@ -46,6 +46,8 @@ enum ProductStatus {
 }
 
 enum OrderStatus {
+  DRAFT
+  SUBMITTED
   PLACED
   CONFIRMED
   PROCESSING
@@ -145,6 +147,7 @@ model User {
   registrationRecord    RegistrationRequest?  @relation("RegistrationUser")
   auditEntries          AuditEntry[]          @relation("AuditActor")
   orders       Order[]
+  cart         Cart?
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
@@ -280,6 +283,8 @@ model ProductVariant {
   prices       PriceEntry[]
   stocks       Stock[]
   availability AvailabilityProjection[]
+  cartItems    CartItem[]
+  orderItems   OrderItem[]
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
 
@@ -429,6 +434,7 @@ model FulfillmentChannel {
   sortOrder           Int               @default(0)
   orders              Order[]
   availability        AvailabilityProjection[]
+  carts               Cart[]
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
 
@@ -488,7 +494,8 @@ model Order {
   fulfillmentChannel FulfillmentChannel @relation(fields: [fulfillmentChannelId], references: [id], onDelete: Restrict)
   paymentMethod PaymentMethod
   number     String
-  status     OrderStatus        @default(PLACED)
+  status     OrderStatus        @default(DRAFT)
+  idempotencyKey String?        @unique
   total      Decimal            @db.Decimal(18, 2)
   currency   String             @default("RUB")
   comment    String             @default("")
@@ -506,17 +513,49 @@ model Order {
 }
 
 model OrderItem {
-  id          String   @id @default(cuid())
+  id          String          @id @default(cuid())
   orderId     String
-  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order       Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
   productId   String?
-  product     Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  product     Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variantId   String?
+  variant     ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
   sku         String
   productName String
   packaging   String
-  quantity    Decimal  @db.Decimal(18, 3)
-  unitPrice   Decimal  @db.Decimal(18, 2)
-  lineTotal   Decimal  @db.Decimal(18, 2)
+  quantity    Decimal         @db.Decimal(18, 3)
+  unitPrice   Decimal         @db.Decimal(18, 2)
+  lineTotal   Decimal         @db.Decimal(18, 2)
+}
+
+// Server-side cart: authoritative quantities, bound to a buyer and a chosen
+// fulfillment channel. Prices/availability are resolved live for display and
+// re-validated + snapshotted at checkout (client can never dictate price).
+model Cart {
+  id                   String              @id @default(cuid())
+  storeId              String
+  userId               String              @unique
+  user                 User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fulfillmentChannelId String?
+  fulfillmentChannel   FulfillmentChannel? @relation(fields: [fulfillmentChannelId], references: [id], onDelete: SetNull)
+  items                CartItem[]
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  @@index([fulfillmentChannelId])
+}
+
+model CartItem {
+  id        String         @id @default(cuid())
+  cartId    String
+  cart      Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  variantId String
+  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  quantity  Decimal        @db.Decimal(18, 3)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@unique([cartId, variantId])
 }
 
 model Invoice {

@@ -4,7 +4,7 @@
 
 Westside является первой клиентской конфигурацией общей платформы AXIMA Commerce. Новые магазины должны разворачиваться из той же кодовой базы через профиль, тему и интеграционные адаптеры — без копирования проекта. Практические правила зафиксированы в [`docs/PLATFORM_FOUNDATION.md`](./docs/PLATFORM_FOUNDATION.md).
 
-Целевая поставка — Self-Hosted с install CLI и локально проверяемой лицензией после активации. Архитектурное решение находится в [`docs/security/licensing-hardening/hardening.md`](./docs/security/licensing-hardening/hardening.md).
+Целевая поставка — Self-Hosted с install CLI и локально проверяемой лицензией после активации. Архитектурное решение находится в [`docs/security/licensing-hardening/hardening.md`](./docs/security/licensing-hardening/hardening.md). Пошаговый runbook (выпуск лицензии, установка, обновление, бэкап/восстановление) — в [`DEPLOYMENT.md`](./DEPLOYMENT.md).
 
 ## Уже заложено
 

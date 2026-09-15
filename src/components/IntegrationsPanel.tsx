@@ -13,6 +13,8 @@ type Connection = {
 
 type IntegrationError = { id: string; code: string; message: string; createdAt: string }
 
+type Job = { id: string; type: string; status: string; attempts: number; maxAttempts: number; lastError: string | null; retryable: boolean; errorCount: number }
+
 // Sample fixtures let the mock provider run end-to-end before a real 1C exists.
 const DEMO_FIXTURES = [
   { externalId: 'DEMO-1', sku: 'DEMO-1', name: 'Демо товар 1', packaging: '25 г', unitsPerPack: 40, barcode: '4600000000011' },
@@ -24,6 +26,7 @@ export function IntegrationsPanel() {
   const [connections, setConnections] = useState<Connection[]>([])
   const [busyId, setBusyId] = useState<string | null>(null)
   const [errors, setErrors] = useState<Record<string, IntegrationError[]>>({})
+  const [jobs, setJobs] = useState<Record<string, Job[]>>({})
   const [message, setMessage] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -71,6 +74,26 @@ export function IntegrationsPanel() {
     }
   }
 
+  const loadJobs = async (id: string) => {
+    const response = await fetch(`/api/staff/integrations/${id}/jobs`)
+    if (response.ok) {
+      const data = await response.json()
+      setJobs((prev) => ({ ...prev, [id]: data.jobs ?? [] }))
+    }
+  }
+
+  const retryJob = async (connectionId: string, jobId: string) => {
+    setMessage(null)
+    const response = await fetch(`/api/staff/jobs/${jobId}/retry`, { method: 'POST' })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      setMessage(data.error === 'provider_not_configured' ? `Провайдер ${data.provider} не настроен.` : 'Retry не выполнен.')
+    } else {
+      setMessage(data.idempotent ? 'Задача уже была успешной — повтор не требуется.' : `Retry: статус ${data.result?.status ?? 'обработан'}.`)
+    }
+    await Promise.all([loadJobs(connectionId), load()])
+  }
+
   return (
     <div className="moderation-list">
       <div className="staff-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -87,8 +110,19 @@ export function IntegrationsPanel() {
           <span>{connection.lastJob ? <><strong>{connection.lastJob.status}</strong>{connection.lastJob.lastError ? <small>{connection.lastJob.lastError}</small> : null}</> : '—'}</span>
           <span className="moderation-actions">
             <button type="button" disabled={busyId === connection.id} onClick={() => sync(connection.id)}>{busyId === connection.id ? 'Синхронизация…' : 'Запустить синхронизацию'}</button>
+            <button type="button" onClick={() => loadJobs(connection.id)}>Задачи</button>
             <button type="button" onClick={() => loadErrors(connection.id)}>Ошибки</button>
           </span>
+          {jobs[connection.id]?.length ? (
+            <div className="integration-jobs" style={{ gridColumn: '1 / -1' }}>
+              {jobs[connection.id].map((job) => (
+                <div key={job.id} className="integration-job-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '6px 0', borderTop: '1px solid var(--line)' }}>
+                  <span><b>{job.type}</b> · {job.status} · попыток {job.attempts}/{job.maxAttempts}{job.lastError ? <small style={{ display: 'block', color: 'var(--muted)' }}>{job.lastError}</small> : null}</span>
+                  {job.retryable ? <button type="button" onClick={() => retryJob(connection.id, job.id)}>Повторить</button> : <small style={{ color: 'var(--success)' }}>—</small>}
+                </div>
+              ))}
+            </div>
+          ) : null}
           {errors[connection.id]?.length ? (
             <ul className="integration-errors" style={{ gridColumn: '1 / -1' }}>
               {errors[connection.id].map((error) => <li key={error.id}><b>{error.code}</b> {error.message}</li>)}

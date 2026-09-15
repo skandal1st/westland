@@ -14,8 +14,14 @@ type CatalogItem = {
   description: string
   sku: string | null
   packaging: string | null
-  price: { amount: number; currency: string } | null
+  price: { amount: number; currency: string; listAmount?: number; promotionIds?: string[] } | null
   availability: { available: number; stale: boolean } | null
+}
+
+type StorefrontBanner = { id: string; name: string; desktopImageUrl: string | null; linkUrl: string | null; brand: { slug: string; name: string } | null }
+
+function formatMoney(amount: number, currency: string): string {
+  return `${amount.toLocaleString('ru-RU')} ${currency === 'RUB' ? '₽' : currency}`
 }
 
 export function CatalogClient() {
@@ -25,8 +31,15 @@ export function CatalogClient() {
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [banners, setBanners] = useState<StorefrontBanner[]>([])
   const deferredQuery = useDeferredValue(query)
   const channelId = view.channelId
+
+  useEffect(() => {
+    fetch('/api/content?placement=CATALOG')
+      .then((r) => (r.ok ? r.json() : { banners: [] }))
+      .then((data) => setBanners(data.banners ?? []))
+  }, [])
 
   useEffect(() => {
     fetch('/api/channels')
@@ -57,9 +70,28 @@ export function CatalogClient() {
 
   return (
     <main className="catalog-page">
-      <section className="catalog-banner" style={{ background: '#25242a', color: '#fff' }} aria-label="Баннер каталога">
-        <div><strong>Каталог</strong><span>Управляемый баннер появится в разделе промо (M9)</span></div>
-      </section>
+      {banners.length > 0 ? (
+        (() => {
+          const banner = banners[0]
+          const body = (
+            <>
+              <div><strong>{banner.brand?.name ?? banner.name}</strong><span>{banner.name}</span></div>
+            </>
+          )
+          const style = { background: banner.desktopImageUrl ? `center/cover url(${banner.desktopImageUrl})` : '#25242a', color: '#fff' }
+          return banner.brand ? (
+            <a className="catalog-banner" style={style} href={`/catalog/brand/${banner.brand.slug}`} aria-label={`Баннер ${banner.name}`}>{body}</a>
+          ) : banner.linkUrl ? (
+            <a className="catalog-banner" style={style} href={banner.linkUrl} aria-label={`Баннер ${banner.name}`}>{body}</a>
+          ) : (
+            <section className="catalog-banner" style={style} aria-label={`Баннер ${banner.name}`}>{body}</section>
+          )
+        })()
+      ) : (
+        <section className="catalog-banner" style={{ background: '#25242a', color: '#fff' }} aria-label="Баннер каталога">
+          <div><strong>Каталог</strong><span>Оптовый ассортимент для партнёров</span></div>
+        </section>
+      )}
       <section className="fulfillment-choice" aria-labelledby="payment-choice-title">
         <div><strong id="payment-choice-title">Канал получения</strong><span>Цена и остатки зависят от выбранного канала</span></div>
         <div className="fulfillment-options" role="radiogroup" aria-label="Канал получения и оплаты">
@@ -80,7 +112,7 @@ export function CatalogClient() {
         <aside className={'filters ' + (filtersOpen ? 'open' : '')}>
           <div className="filter-title"><strong>Поиск</strong><Filter /></div>
           <label className="catalog-query">По названию или артикулу<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Название или SKU" /></label>
-          <p className="filter-note">Категории и бренды станут фильтрами вместе с промо-контентом (M9).</p>
+          <p className="filter-note">Категории и бренды станут фильтрами в следующих версиях.</p>
         </aside>
         <section className="products-region">
           <div className="catalog-toolbar"><span>Найдено: {visible.length}</span></div>
@@ -105,7 +137,18 @@ export function CatalogClient() {
                       <button type="button" aria-label={'Добавить ' + item.displayName} disabled={!canAdd} title={!item.price ? 'Нет цены для вашей группы' : undefined} onClick={() => item.variantId && setItem(item.variantId, quantity + 1)}><Plus /></button>
                     </div>
                   </div>
-                  <strong className="product-price">{item.price ? `${item.price.amount.toLocaleString('ru-RU')} ${item.price.currency === 'RUB' ? '₽' : item.price.currency}` : '—'}</strong>
+                  <strong className="product-price">
+                    {item.price ? (
+                      item.price.listAmount && item.price.listAmount > item.price.amount ? (
+                        <>
+                          <s style={{ opacity: 0.55, fontWeight: 400, marginRight: 8 }}>{formatMoney(item.price.listAmount, item.price.currency)}</s>
+                          {formatMoney(item.price.amount, item.price.currency)}
+                        </>
+                      ) : (
+                        formatMoney(item.price.amount, item.price.currency)
+                      )
+                    ) : '—'}
+                  </strong>
                 </article>
               )
             })}

@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db'
 import { resolveBuyerPriceGroupId, resolveVariantPrice } from '@/lib/pricing'
 import { availabilityForVariants } from '@/lib/pricing/availability'
+import { loadStoreProfile } from '@/lib/store-profile'
 import type { SessionUser } from '@/lib/authz'
 
 export class CheckoutError extends Error {
@@ -37,6 +38,7 @@ export async function checkout(
   if (!delivery) throw new CheckoutError('INVALID_DELIVERY')
 
   const groupId = await resolveBuyerPriceGroupId(user)
+  const promotions = loadStoreProfile().modules.promotions
   const variantIds = cart.items.map((item) => item.variantId)
   const availability = await availabilityForVariants({ variantIds, channelId: channel.id })
 
@@ -54,7 +56,7 @@ export async function checkout(
     const variant = variantById.get(item.variantId)
     if (!variant) throw new CheckoutError('NO_PRICE')
     const quantity = Number(item.quantity)
-    const price = await resolveVariantPrice({ storeId: user.storeId, variantId: item.variantId, groupId, channelId: channel.id })
+    const price = await resolveVariantPrice({ storeId: user.storeId, variantId: item.variantId, groupId, channelId: channel.id, promotions })
     if (!price) throw new CheckoutError('NO_PRICE')
     const avail = availability.get(item.variantId)
     if (!avail || avail.available < quantity) throw new CheckoutError('INSUFFICIENT_STOCK')

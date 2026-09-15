@@ -39,6 +39,11 @@ enum BannerPlacement {
   CATALOG
 }
 
+enum PromotionType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
 enum ProductStatus {
   DRAFT
   ACTIVE
@@ -113,6 +118,10 @@ model Store {
   locations    InventoryLocation[]
   fulfillmentChannels FulfillmentChannel[]
   banners      SiteBanner[]
+  campaigns    Campaign[]
+  promotions   Promotion[]
+  brandPages   BrandPage[]
+  contentBlocks ContentBlock[]
   orders       Order[]
   integrations IntegrationConnection[]
   registrationRequests RegistrationRequest[]
@@ -247,6 +256,7 @@ model Brand {
   logoUrl  String?
   products Product[]
   banners  SiteBanner[]
+  page     BrandPage?
 
   @@unique([storeId, slug])
 }
@@ -645,6 +655,8 @@ model SiteBanner {
   store           Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
   brandId         String?
   brand           Brand?          @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  campaignId      String?
+  campaign        Campaign?       @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   placement       BannerPlacement @default(CATALOG)
   name            String
   desktopImageUrl String?
@@ -659,6 +671,94 @@ model SiteBanner {
 
   @@index([storeId, placement, isActive, sortOrder])
   @@index([brandId])
+  @@index([campaignId])
+}
+
+// A named merchandising campaign grouping banners and price promotions under a
+// shared active window. Content (banners/pages) and pricing (promotions) both
+// reference it, but neither depends on the other.
+model Campaign {
+  id          String       @id @default(cuid())
+  storeId     String
+  store       Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  name        String
+  slug        String
+  description String?
+  priority    Int          @default(100)
+  isActive    Boolean      @default(true)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  banners     SiteBanner[]
+  promotions  Promotion[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([storeId, slug])
+  @@index([storeId, isActive])
+}
+
+// A price rule applied in the pricing function (the M5 extension point). It
+// never mutates a PriceEntry — it discounts the resolved contextual price at
+// read time, so a released invoice (a snapshot) is never retroactively changed.
+// `scope` targets brand/category/variant ids; an empty/absent scope = all.
+// Overlaps resolve by `priority` (higher wins); `stackable` rules compose.
+model Promotion {
+  id         String        @id @default(cuid())
+  storeId    String
+  store      Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  campaignId String?
+  campaign   Campaign?     @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  name       String
+  type       PromotionType @default(PERCENTAGE)
+  value      Decimal       @db.Decimal(18, 2)
+  priority   Int           @default(100)
+  stackable  Boolean       @default(false)
+  isActive   Boolean       @default(true)
+  startsAt   DateTime?
+  endsAt     DateTime?
+  scope      Json?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@index([storeId, isActive, priority])
+  @@index([campaignId])
+}
+
+// Merchandising overlay for a brand's storefront page (hero + rich body). One
+// per brand. Provider sync never touches it (commerce-owned, "overlay wins").
+model BrandPage {
+  id           String   @id @default(cuid())
+  storeId      String
+  store        Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  brandId      String   @unique
+  brand        Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  title        String
+  heroImageUrl String?
+  body         Json?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([storeId, isActive])
+}
+
+// A keyed, placement-scoped block of managed storefront content (not a full
+// CMS — see plan §4 non-goals). Read-model resolves active blocks by placement.
+model ContentBlock {
+  id        String   @id @default(cuid())
+  storeId   String
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  key       String
+  placement String   @default("HOME")
+  title     String?
+  body      Json?
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([storeId, key])
+  @@index([storeId, placement, isActive, sortOrder])
 }
 
 model IntegrationConnection {

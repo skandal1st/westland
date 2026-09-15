@@ -52,6 +52,28 @@ export async function enqueueJob(
   })
 }
 
+/**
+ * Manual retry from backoffice (plan §M9). Idempotent: an already-SUCCEEDED job
+ * is a no-op (returns as-is), so retrying a job that meanwhile succeeded never
+ * re-runs it. A FAILED/RETRYING/PENDING job is made due again; if its bounded
+ * attempts were exhausted, the ceiling is lifted by one so runDueJobs re-runs it.
+ */
+export async function retryJob(jobId: string, client: PrismaClient = defaultPrisma): Promise<IntegrationJob | null> {
+  const job = await client.integrationJob.findUnique({ where: { id: jobId } })
+  if (!job) return null
+  if (job.status === 'SUCCEEDED') return job
+  return client.integrationJob.update({
+    where: { id: job.id },
+    data: {
+      status: 'PENDING',
+      availableAt: new Date(),
+      lastError: null,
+      finishedAt: null,
+      maxAttempts: job.attempts >= job.maxAttempts ? job.attempts + 1 : job.maxAttempts,
+    },
+  })
+}
+
 /** Run one attempt of a job with durable attempt/error tracking and bounded retry. */
 export async function runJob(job: IntegrationJob, deps: { provider: OperationalProvider }, client: PrismaClient = defaultPrisma): Promise<RunResult> {
   const attempt = job.attempts + 1

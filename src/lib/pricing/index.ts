@@ -1,5 +1,6 @@
 import type { PrismaClient } from '@prisma/client'
 import { prisma as defaultPrisma } from '@/lib/db'
+import { loadPromotionContext, resolvePromotedAmount } from '@/lib/pricing/promotions'
 
 type Client = PrismaClient
 
@@ -42,10 +43,15 @@ function withinWindow(entry: { effectiveFrom: Date | null; effectiveTo: Date | n
   return true
 }
 
-export type ResolvedPrice = { amount: number; currency: string }
+/**
+ * `amount` is always the buyable price. When a promotion applied, `listAmount`
+ * carries the pre-discount price and `promotionIds` the rules that fired. When
+ * promotions are disabled or none matched, `amount === listAmount`.
+ */
+export type ResolvedPrice = { amount: number; currency: string; listAmount?: number; promotionIds?: string[] }
 
 export async function resolveVariantPrice(
-  input: { storeId: string; variantId: string; groupId?: string | null; channelId?: string | null; date?: Date },
+  input: { storeId: string; variantId: string; groupId?: string | null; channelId?: string | null; date?: Date; promotions?: boolean },
   client: Client = defaultPrisma,
 ): Promise<ResolvedPrice | null> {
   const bookId = await resolvePriceBookId(input, client)
@@ -54,13 +60,17 @@ export async function resolveVariantPrice(
     where: { priceBookId_variantId: { priceBookId: bookId, variantId: input.variantId } },
     include: { priceBook: { select: { currency: true } } },
   })
-  if (!entry || !withinWindow(entry, input.date ?? new Date())) return null
-  return { amount: Number(entry.amount), currency: entry.priceBook.currency }
+  const date = input.date ?? new Date()
+  if (!entry || !withinWindow(entry, date)) return null
+  const base: ResolvedPrice = { amount: Number(entry.amount), currency: entry.priceBook.currency }
+  if (!input.promotions) return base
+  const { rules, targets } = await loadPromotionContext({ storeId: input.storeId, variantIds: [input.variantId] }, client)
+  return applyPromotion(base, targets.get(input.variantId) ?? { variantId: input.variantId }, rules, date)
 }
 
 /** Batch price lookup for a listing — resolves the book once, then one query. */
 export async function priceVariantsInContext(
-  input: { storeId: string; variantIds: string[]; groupId?: string | null; channelId?: string | null; date?: Date },
+  input: { storeId: string; variantIds: string[]; groupId?: string | null; channelId?: string | null; date?: Date; promotions?: boolean },
   client: Client = defaultPrisma,
 ): Promise<Map<string, ResolvedPrice>> {
   const result = new Map<string, ResolvedPrice>()
@@ -72,8 +82,27 @@ export async function priceVariantsInContext(
     where: { priceBookId: bookId, variantId: { in: input.variantIds } },
     include: { priceBook: { select: { currency: true } } },
   })
-  for (const entry of entries) {
-    if (withinWindow(entry, date)) result.set(entry.variantId, { amount: Number(entry.amount), currency: entry.priceBook.currency })
+  const priced = entries.filter((entry) => withinWindow(entry, date))
+  const context = input.promotions
+    ? await loadPromotionContext({ storeId: input.storeId, variantIds: priced.map((e) => e.variantId) }, client)
+    : null
+  for (const entry of priced) {
+    const base: ResolvedPrice = { amount: Number(entry.amount), currency: entry.priceBook.currency }
+    result.set(
+      entry.variantId,
+      context ? applyPromotion(base, context.targets.get(entry.variantId) ?? { variantId: entry.variantId }, context.rules, date) : base,
+    )
   }
   return result
+}
+
+function applyPromotion(
+  base: ResolvedPrice,
+  target: { variantId: string; brandId?: string | null; categoryId?: string | null },
+  rules: Parameters<typeof resolvePromotedAmount>[2],
+  date: Date,
+): ResolvedPrice {
+  const promoted = resolvePromotedAmount(base, target, rules, date)
+  if (promoted.promotionIds.length === 0) return base
+  return { amount: promoted.amount, currency: base.currency, listAmount: promoted.listAmount, promotionIds: promoted.promotionIds }
 }

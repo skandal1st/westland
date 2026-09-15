@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db'
 import { priceVariantsInContext } from '@/lib/pricing'
 import { availabilityForVariants } from '@/lib/pricing/availability'
+import { loadStoreProfile } from '@/lib/store-profile'
 
 export type CatalogItem = {
   productId: string
@@ -83,7 +84,7 @@ export async function listCatalog(input: {
   const items = rows.map(toItem).filter((item): item is CatalogItem => item !== null)
   const variantIds = items.map((item) => item.variantId).filter((id): id is string => id !== null)
 
-  const prices = await priceVariantsInContext({ storeId: input.storeId, variantIds, groupId: input.groupId, channelId: input.channelId, date: input.date })
+  const prices = await priceVariantsInContext({ storeId: input.storeId, variantIds, groupId: input.groupId, channelId: input.channelId, date: input.date, promotions: loadStoreProfile().modules.promotions })
   const availability = input.channelId ? await availabilityForVariants({ variantIds, channelId: input.channelId }) : new Map()
   const now = Date.now()
 

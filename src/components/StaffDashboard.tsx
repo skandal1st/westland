@@ -1,21 +1,16 @@
 'use client'
 
 import NextImage from 'next/image'
-import { Banknote, Boxes, Building2, Check, ChevronRight, CircleUserRound, ClipboardList, Image as ImageIcon, PackageCheck, Settings, ShoppingBag, Users, X } from 'lucide-react'
+import { Banknote, Boxes, Building2, Check, CircleUserRound, ClipboardList, Image as ImageIcon, PackageCheck, Settings, ShoppingBag, Tag, Users, X } from 'lucide-react'
 import { signOut, useSession } from 'next-auth/react'
 import { useCallback, useEffect, useState } from 'react'
 import { CatalogAdminPanel } from '@/components/CatalogAdminPanel'
 import { IntegrationsPanel } from '@/components/IntegrationsPanel'
 import { CommercePanel } from '@/components/CommercePanel'
+import { ContentPanel } from '@/components/ContentPanel'
+import { PromoPanel } from '@/components/PromoPanel'
 import { OrdersPanel } from '@/components/OrdersPanel'
 import { useStoreProfile } from '@/lib/store-profile-context'
-
-// Banners remain demonstrative until M9.
-const banners = [
-  ['Общий каталог', 'Все бренды', 'Активен'],
-  ['Black Burn', 'Black Burn', 'Активен'],
-  ['Bonche', 'Bonche', 'Черновик'],
-]
 
 type PendingRequest = {
   id: string
@@ -64,10 +59,10 @@ export function StaffDashboard() {
 
   const navigation = [
     ['Заказы', ClipboardList], ['Модерация', Users], ['Товары', Boxes], ['Клиенты', Building2],
-    ['Ценовые группы', ShoppingBag], ['Баннеры', ImageIcon], ['Склады', Banknote], ['Интеграции', PackageCheck], ['Настройки', Settings],
+    ['Ценовые группы', ShoppingBag], ['Контент', ImageIcon], ['Промо', Tag], ['Склады', Banknote], ['Интеграции', PackageCheck], ['Настройки', Settings],
   ] as const
   const pendingCount = registrations.length
-  const actionLabel = section === 'Товары' ? 'Добавить товар' : section === 'Заказы' ? 'Создать заказ' : section === 'Баннеры' ? 'Добавить баннер' : ''
+  const actionLabel = section === 'Товары' ? 'Добавить товар' : section === 'Заказы' ? 'Создать заказ' : ''
 
   return (
     <main className="staff-shell">
@@ -108,7 +103,9 @@ export function StaffDashboard() {
 
         {section === 'Ценовые группы' || section === 'Склады' || section === 'Клиенты' ? <CommercePanel /> : null}
 
-        {section === 'Баннеры' ? <div className="banner-admin-list"><div><strong>Баннер</strong><strong>Показывается для</strong><strong>Статус</strong></div>{banners.map((banner) => <button type="button" key={banner[0]}><span className="banner-admin-preview"><ImageIcon /></span><span><strong>{banner[0]}</strong><small>Desktop и mobile изображения</small></span><span>{banner[1]}</span><b>{banner[2]}</b><ChevronRight /></button>)}</div> : null}
+        {section === 'Контент' ? <ContentPanel /> : null}
+
+        {section === 'Промо' ? <PromoPanel /> : null}
 
         {section === 'Настройки' ? <div className="staff-placeholder"><h2>Настройки</h2><p>Раздел подготовлен в архитектуре и будет подключён на следующем этапе.</p></div> : null}
       </section>

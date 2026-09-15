@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db'
 import { priceVariantsInContext, resolveBuyerPriceGroupId } from '@/lib/pricing'
 import { availabilityForVariants } from '@/lib/pricing/availability'
+import { loadStoreProfile } from '@/lib/store-profile'
 import type { SessionUser } from '@/lib/authz'
 
 export class CartError extends Error {
@@ -77,7 +78,7 @@ export async function getCartView(user: SessionUser): Promise<CartView> {
 
   const groupId = await resolveBuyerPriceGroupId(user)
   const variantIds = cart.items.map((item) => item.variantId)
-  const prices = await priceVariantsInContext({ storeId: user.storeId, variantIds, groupId, channelId: cart.fulfillmentChannelId })
+  const prices = await priceVariantsInContext({ storeId: user.storeId, variantIds, groupId, channelId: cart.fulfillmentChannelId, promotions: loadStoreProfile().modules.promotions })
   const availability = cart.fulfillmentChannelId ? await availabilityForVariants({ variantIds, channelId: cart.fulfillmentChannelId }) : new Map()
 
   let total = 0

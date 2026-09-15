@@ -24,6 +24,7 @@ export const StoreProfileSchema = z.object({
     b2b: z.boolean(),
     content: z.boolean(),
     invoices: z.boolean(),
+    promotions: z.boolean(),
   }),
   policies: z.object({
     catalogRequiresAuth: z.boolean(),
@@ -47,7 +48,7 @@ export type StoreProfile = z.infer<typeof StoreProfileSchema>
 /** Safe platform defaults used when no deployment profile file is present (dev). */
 export const DEV_STORE_PROFILE: StoreProfile = {
   identity: { code: 'dev', name: 'AXIMA Commerce (dev)' },
-  modules: { b2b: true, content: true, invoices: true },
+  modules: { b2b: true, content: true, invoices: true, promotions: true },
   policies: { catalogRequiresAuth: true, registration: 'manual', requireAgeConfirmation: true },
   integrations: { primaryErp: 'custom' },
   theme: { id: 'default', defaultPalette: 'violet' },
@@ -79,6 +80,7 @@ export function deploymentProfileToRuntime(raw: unknown): StoreProfile {
       b2b: modules.includes('commerce-b2b'),
       content: modules.includes('content'),
       invoices: modules.includes('invoices'),
+      promotions: modules.includes('promotions'),
     },
     policies: {
       catalogRequiresAuth: rt.catalogRequiresAuth ?? true,

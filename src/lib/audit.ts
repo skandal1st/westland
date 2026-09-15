@@ -17,6 +17,7 @@ export const AuditAction = {
   OrderExportRetried: 'OrderExportRetried',
   InvoiceIssued: 'InvoiceIssued',
   InvoiceReissued: 'InvoiceReissued',
+  IntegrationRetried: 'IntegrationRetried',
 } as const
 
 export type AuditActionName = (typeof AuditAction)[keyof typeof AuditAction] | (string & {})

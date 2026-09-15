@@ -125,6 +125,11 @@ else
     echo "NEXTAUTH_URL=https://${DOMAIN}"
     echo "NEXTAUTH_SECRET=${NEXTAUTH_SECRET}"
     echo "STORE_PROFILE_PATH=/app/deployment/config/store-profile.json"
+    # License runtime guard (M10): verify the on-disk grant and enforce in prod.
+    echo "LICENSE_ENFORCE=1"
+    echo "LICENSE_GRANT_PATH=/app/deployment/config/license.json"
+    echo "LICENSE_INSTALLATION_KEY_PATH=/app/deployment/secrets/installation-private-key.pem"
+    echo "LICENSE_PUBLISHER_PUBLIC_KEY_PATH=/app/deployment/config/publisher-public.pem"
   } > "$ENV_FILE"
   chmod 600 "$ENV_FILE"
   log "Generated secrets in $ENV_FILE (0600)."

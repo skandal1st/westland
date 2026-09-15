@@ -1,7 +1,7 @@
 'use client'
 
 import NextImage from 'next/image'
-import { Banknote, Boxes, Building2, Check, CircleUserRound, ClipboardList, Image as ImageIcon, PackageCheck, Settings, ShoppingBag, Tag, Users, X } from 'lucide-react'
+import { Banknote, Boxes, Building2, Check, CircleUserRound, ClipboardList, Image as ImageIcon, PackageCheck, Settings, ShieldCheck, ShoppingBag, Tag, Users, X } from 'lucide-react'
 import { signOut, useSession } from 'next-auth/react'
 import { useCallback, useEffect, useState } from 'react'
 import { CatalogAdminPanel } from '@/components/CatalogAdminPanel'
@@ -9,6 +9,7 @@ import { IntegrationsPanel } from '@/components/IntegrationsPanel'
 import { CommercePanel } from '@/components/CommercePanel'
 import { ContentPanel } from '@/components/ContentPanel'
 import { PromoPanel } from '@/components/PromoPanel'
+import { LicensePanel } from '@/components/LicensePanel'
 import { OrdersPanel } from '@/components/OrdersPanel'
 import { useStoreProfile } from '@/lib/store-profile-context'
 
@@ -59,7 +60,7 @@ export function StaffDashboard() {
 
   const navigation = [
     ['Заказы', ClipboardList], ['Модерация', Users], ['Товары', Boxes], ['Клиенты', Building2],
-    ['Ценовые группы', ShoppingBag], ['Контент', ImageIcon], ['Промо', Tag], ['Склады', Banknote], ['Интеграции', PackageCheck], ['Настройки', Settings],
+    ['Ценовые группы', ShoppingBag], ['Контент', ImageIcon], ['Промо', Tag], ['Склады', Banknote], ['Интеграции', PackageCheck], ['Лицензия', ShieldCheck], ['Настройки', Settings],
   ] as const
   const pendingCount = registrations.length
   const actionLabel = section === 'Товары' ? 'Добавить товар' : section === 'Заказы' ? 'Создать заказ' : ''
@@ -106,6 +107,8 @@ export function StaffDashboard() {
         {section === 'Контент' ? <ContentPanel /> : null}
 
         {section === 'Промо' ? <PromoPanel /> : null}
+
+        {section === 'Лицензия' ? <LicensePanel /> : null}
 
         {section === 'Настройки' ? <div className="staff-placeholder"><h2>Настройки</h2><p>Раздел подготовлен в архитектуре и будет подключён на следующем этапе.</p></div> : null}
       </section>

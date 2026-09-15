@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getCurrentUser } from '@/lib/authz'
 import { checkout, CheckoutError } from '@/lib/cart/checkout'
+import { LicenseError } from '@/lib/license'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -21,6 +22,7 @@ export async function POST(request: Request) {
     const order = await checkout(user, parsed.data)
     return NextResponse.json({ orderId: order.id, number: order.number, status: order.status, total: Number(order.total), currency: order.currency }, { status: 201 })
   } catch (error) {
+    if (error instanceof LicenseError) return NextResponse.json({ error: error.message, license: error.status }, { status: 403 })
     if (error instanceof CheckoutError) return NextResponse.json({ error: error.code }, { status: STATUS[error.code] })
     throw error
   }

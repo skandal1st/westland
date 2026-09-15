@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db'
 import { resolveBuyerPriceGroupId, resolveVariantPrice } from '@/lib/pricing'
 import { availabilityForVariants } from '@/lib/pricing/availability'
 import { loadStoreProfile } from '@/lib/store-profile'
+import { assertLicenseActive } from '@/lib/license'
 import type { SessionUser } from '@/lib/authz'
 
 export class CheckoutError extends Error {
@@ -20,6 +21,9 @@ export async function checkout(
   user: SessionUser,
   input: { deliveryLocationId: string; comment?: string; idempotencyKey?: string },
 ) {
+  // License is verified before any order is written; a blocked license never
+  // creates a partial order (controlled degradation, no data corruption).
+  assertLicenseActive()
   if (!user.customerId) throw new CheckoutError('NO_CUSTOMER')
 
   if (input.idempotencyKey) {

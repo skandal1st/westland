@@ -26,11 +26,22 @@ services:
     environment:
       NODE_ENV: production
       DATABASE_URL: ${DATABASE_URL:-postgresql://westside:westside@postgres:5432/westside}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-}
+      STORE_PROFILE_PATH: ${STORE_PROFILE_PATH:-/app/deployment/config/store-profile.json}
+      # License runtime guard (M10): enforce and verify the on-disk grant.
+      LICENSE_ENFORCE: ${LICENSE_ENFORCE:-1}
+      LICENSE_GRANT_PATH: ${LICENSE_GRANT_PATH:-/app/deployment/config/license.json}
+      LICENSE_INSTALLATION_KEY_PATH: ${LICENSE_INSTALLATION_KEY_PATH:-/app/deployment/secrets/installation-private-key.pem}
+      LICENSE_PUBLISHER_PUBLIC_KEY_PATH: ${LICENSE_PUBLISHER_PUBLIC_KEY_PATH:-/app/deployment/config/publisher-public.pem}
     ports:
       - '${APP_PORT:-3000}:3000'
     depends_on:
       postgres:
         condition: service_healthy
+    # Deployment config/secrets (store profile + license grant + identity key).
+    volumes:
+      - ./deployment:/app/deployment:ro
     # Apply committed migrations, then start. Never `db push` in a deployment.
     command: sh -c "node_modules/.bin/prisma migrate deploy && node server.js"
     healthcheck:

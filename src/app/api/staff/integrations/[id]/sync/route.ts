@@ -4,6 +4,7 @@ import { requireApiUser } from '@/lib/authz'
 import { getActiveStore } from '@/lib/store'
 import { enqueueJob, runDueJobs, JOB_CATALOG_IMPORT, JOB_PRICES_IMPORT, JOB_AVAILABILITY_IMPORT } from '@/lib/integrations/jobs'
 import { ProviderNotConfiguredError } from '@/lib/integrations/provider'
+import { assertLicenseActive, LicenseError } from '@/lib/license'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -25,6 +26,7 @@ export async function POST(_request: Request, { params }: { params: { id: string
   if (!connection) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
   try {
+    assertLicenseActive()
     const results = []
     for (const type of SEQUENCE) {
       await enqueueJob({ storeId: store.id, connectionId: connection.id, type })
@@ -32,6 +34,7 @@ export async function POST(_request: Request, { params }: { params: { id: string
     }
     return NextResponse.json({ results })
   } catch (error) {
+    if (error instanceof LicenseError) return NextResponse.json({ error: error.message, license: error.status }, { status: 403 })
     if (error instanceof ProviderNotConfiguredError) {
       return NextResponse.json({ error: 'provider_not_configured', provider: error.provider }, { status: 409 })
     }

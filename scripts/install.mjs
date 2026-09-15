@@ -61,6 +61,9 @@ const runtimeSecrets = [envLine('DATABASE_URL', databaseUrl)];
 if (smtpPassword) runtimeSecrets.push(envLine('SMTP_PASSWORD', smtpPassword));
 atomicWrite(path.join(secretsDir, 'runtime.env'), `${runtimeSecrets.join('\n')}\n`, 0o600);
 atomicWrite(grantFile, `${JSON.stringify(activation.envelope, null, 2)}\n`, 0o644);
+// The runtime license guard (src/lib/license) verifies the grant offline, so it
+// needs the publisher public key alongside the deployment config.
+atomicWrite(path.join(configDir, 'publisher-public.pem'), publisherPublicKey, 0o644);
 atomicWrite(path.join(configDir, 'store-profile.json'), `${JSON.stringify(publicProfile(config), null, 2)}\n`, 0o644);
 console.log(`Installation configuration written to ${outputDir}.`);
 console.log('License signature and installation binding verified locally.');

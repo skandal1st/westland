@@ -1,17 +1,23 @@
 #!/usr/bin/env sh
-# AXIMA Commerce installer (M1 — fresh install foundation).
+# AXIMA Commerce installer.
 #
 # Idempotent as far as is reasonable: re-running never regenerates secrets,
-# never resets an existing profile, never creates a second admin and never
-# drops the database. Update / backup / restore / rollback and license
-# ENFORCEMENT are hardened in M10; this establishes the deployment foundation.
+# never resets an existing profile, never creates a second admin, never drops
+# the database and never re-activates an existing license.
+#
+# It also ACTIVATES the license (M10): if no grant is present it runs the
+# activation (scripts/install.mjs) against the licensing server before starting
+# the app, so a production deploy can never come up unlicensed by accident.
 #
 # Usage:
 #   ./install.sh [--plan] [--non-interactive] \
 #     [--domain shop.example.com] [--store-code westside] [--store-name "Westside"] \
 #     [--admin-email admin@example.com] [--modules commerce-core,commerce-b2b,content,invoices] \
-#     [--provider one-c|moysklad|custom]
+#     [--provider one-c|moysklad|custom] \
+#     [--activation-key axm_...] [--license-server http://127.0.0.1:4010] \
+#     [--publisher-key ./services/license-server/keys/publisher-public.pem]
 #
+#   Activation key may also come from the AXIMA_ACTIVATION_KEY environment var.
 #   --plan   Print what would happen and exit. No environment checks, no writes.
 #
 # Secrets (POSTGRES_PASSWORD, NEXTAUTH_SECRET) are generated if absent and
@@ -28,6 +34,9 @@ STORE_NAME="${STORE_NAME:-Westside}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-}"
 MODULES="${MODULES:-commerce-core,commerce-b2b,content,invoices}"
 PROVIDER="${PROVIDER:-one-c}"
+ACTIVATION_KEY="${AXIMA_ACTIVATION_KEY:-}"
+LICENSE_SERVER="${LICENSE_SERVER:-http://127.0.0.1:4010}"
+PUBLISHER_KEY="${PUBLISHER_KEY:-./services/license-server/keys/publisher-public.pem}"
 DEPLOY_DIR="deployment"
 CONFIG_DIR="$DEPLOY_DIR/config"
 SECRETS_DIR="$DEPLOY_DIR/secrets"
@@ -45,6 +54,9 @@ while [ $# -gt 0 ]; do
     --admin-email) ADMIN_EMAIL="$2"; shift ;;
     --modules) MODULES="$2"; shift ;;
     --provider) PROVIDER="$2"; shift ;;
+    --activation-key) ACTIVATION_KEY="$2"; shift ;;
+    --license-server) LICENSE_SERVER="$2"; shift ;;
+    --publisher-key) PUBLISHER_KEY="$2"; shift ;;
     -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
     *) echo "Unknown option: $1" >&2; exit 2 ;;
   esac
@@ -85,7 +97,9 @@ if [ "$PLAN" -eq 1 ]; then
   log "  erp provider:  $PROVIDER"
   log "  profile file:  $PROFILE_FILE (created if absent)"
   log "  env file:      $ENV_FILE (secrets generated if absent, 0600)"
-  log "  steps:         checks -> secrets -> profile -> compose build -> postgres -> migrate deploy -> bootstrap -> app -> nginx -> https -> health"
+  if [ -n "$ACTIVATION_KEY" ]; then log "  activation:    key supplied (hidden)"; else log "  activation:    <none — pass --activation-key or pre-run install.mjs>"; fi
+  log "  license srv:   $LICENSE_SERVER (publisher key: $PUBLISHER_KEY)"
+  log "  steps:         checks -> secrets -> profile -> license activate -> compose build -> postgres -> migrate deploy -> bootstrap -> app -> nginx -> https -> health"
   log "No files were written and no activation was consumed."
   exit 0
 fi
@@ -159,6 +173,43 @@ ADMIN_PASSWORD_GENERATED=0
 if [ -z "${ADMIN_PASSWORD:-}" ]; then
   ADMIN_PASSWORD="$(gen_secret | cut -c1-24)"
   ADMIN_PASSWORD_GENERATED=1
+fi
+
+# --- license activation (M10) — run once, before the app starts -------------
+# install.sh owns store-profile.json and .env; install.mjs is run into a staging
+# dir and only the license + installation identity artifacts are copied in, so
+# the two installers never fight over the profile. Skipped if a grant exists.
+if [ -f "$CONFIG_DIR/license.json" ]; then
+  log "License grant present in $CONFIG_DIR/license.json (activation skipped)."
+else
+  [ -n "$ACTIVATION_KEY" ] || die "no license grant and no --activation-key / AXIMA_ACTIVATION_KEY. Issue a license (npm run license:issue) and pass its activation key."
+  have node || die "node is required on the host to activate the license (or run 'node scripts/install.mjs apply' manually, then re-run install.sh)."
+  [ -f "$PUBLISHER_KEY" ] || die "publisher public key not found at $PUBLISHER_KEY (use --publisher-key)."
+  log "Activating license against $LICENSE_SERVER ..."
+  STAGE="$DEPLOY_DIR/.activation.tmp"
+  rm -rf "$STAGE"
+  _modules_json=$(printf '%s' "$MODULES" | awk -F, '{for(i=1;i<=NF;i++){printf "%s\"%s\"", (i>1?",":""), $i}}')
+  cat > "$DEPLOY_DIR/.install.config.json" <<JSON
+{
+  "outputDir": "$STAGE",
+  "store": { "code": "$(json_escape "$STORE_CODE")", "name": "$(json_escape "$STORE_NAME")", "baseUrl": "https://$(json_escape "$DOMAIN")" },
+  "admin": { "email": "$(json_escape "$ADMIN_EMAIL")", "name": "Administrator" },
+  "modules": [${_modules_json}],
+  "database": { "urlEnv": "AXIMA_DATABASE_URL" },
+  "email": { "enabled": false },
+  "integration": { "provider": "$(json_escape "$PROVIDER")" },
+  "license": { "serverUrl": "$(json_escape "$LICENSE_SERVER")", "publisherPublicKeyFile": "$(json_escape "$PUBLISHER_KEY")", "activationKeyEnv": "AXIMA_ACTIVATION_KEY", "deploymentClass": "production" }
+}
+JSON
+  AXIMA_ACTIVATION_KEY="$ACTIVATION_KEY" AXIMA_DATABASE_URL="$DATABASE_URL" \
+    node scripts/install.mjs apply --config "$DEPLOY_DIR/.install.config.json" || die "license activation failed"
+  cp "$STAGE/config/license.json" "$CONFIG_DIR/license.json"
+  cp "$STAGE/config/publisher-public.pem" "$CONFIG_DIR/publisher-public.pem"
+  cp "$STAGE/config/installation.json" "$CONFIG_DIR/installation.json"
+  cp "$STAGE/secrets/installation-private-key.pem" "$SECRETS_DIR/installation-private-key.pem"
+  chmod 600 "$SECRETS_DIR/installation-private-key.pem"
+  rm -rf "$STAGE" "$DEPLOY_DIR/.install.config.json"
+  log "License activated; grant written to $CONFIG_DIR/license.json."
 fi
 
 # --- build + database + migrate + bootstrap ---------------------------------

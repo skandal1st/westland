@@ -9,8 +9,10 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-westside}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-westside}
       POSTGRES_DB: ${POSTGRES_DB:-westside}
+    # Bound to loopback only: the app reaches Postgres over the compose network;
+    # host access stays available for dev/backup without exposing the DB publicly.
     ports:
-      - '${POSTGRES_PORT:-5432}:5432'
+      - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -34,8 +36,10 @@ services:
       LICENSE_GRANT_PATH: ${LICENSE_GRANT_PATH:-/app/deployment/config/license.json}
       LICENSE_INSTALLATION_KEY_PATH: ${LICENSE_INSTALLATION_KEY_PATH:-/app/deployment/secrets/installation-private-key.pem}
       LICENSE_PUBLISHER_PUBLIC_KEY_PATH: ${LICENSE_PUBLISHER_PUBLIC_KEY_PATH:-/app/deployment/config/publisher-public.pem}
+    # Loopback only: nginx (on the host) proxies to 127.0.0.1:3000; the app is
+    # never reachable directly, so all traffic goes through TLS + security headers.
     ports:
-      - '${APP_PORT:-3000}:3000'
+      - '127.0.0.1:${APP_PORT:-3000}:3000'
     depends_on:
       postgres:
         condition: service_healthy

@@ -33,7 +33,9 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
+# Recreate the prisma CLI symlink (docker COPY dereferences it into a plain file,
+# which breaks the CLI's __dirname-relative lookup of prisma_schema_build_bg.wasm).
+RUN mkdir -p ./node_modules/.bin && ln -sf ../prisma/build/index.js ./node_modules/.bin/prisma
 # Bootstrap script + its runtime dep (bcryptjs) so the installer can run
 # `node scripts/bootstrap.mjs` inside the image.
 COPY --from=builder /app/scripts ./scripts

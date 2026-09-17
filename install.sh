@@ -225,6 +225,14 @@ i=0; while [ "$i" -lt 30 ]; do
 done
 [ "$s" = "healthy" ] || die "database did not become healthy"
 
+# The app image runs as the unprivileged 'nextjs' user (uid 1001) and mounts
+# deployment/ read-only for the store profile, license grant and installation
+# key. Hand ownership of the tree to that uid so bootstrap and the license
+# runtime guard can read it, while 0700/0600 keep it closed to other host users.
+APP_UID="${APP_UID:-1001}"
+chown -R "$APP_UID:$APP_UID" "$DEPLOY_DIR" 2>/dev/null \
+  || log "warn: could not chown $DEPLOY_DIR to uid $APP_UID (run as root); the app container may fail to read the license/profile."
+
 log "Applying migrations and bootstrapping..."
 docker compose --env-file "$ENV_FILE" run --rm \
   -e ADMIN_EMAIL="$ADMIN_EMAIL" -e ADMIN_PASSWORD="$ADMIN_PASSWORD" \

@@ -40,6 +40,10 @@ RUN mkdir -p ./node_modules/.bin && ln -sf ../prisma/build/index.js ./node_modul
 # `node scripts/bootstrap.mjs` inside the image.
 COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/node_modules/bcryptjs ./node_modules/bcryptjs
+# Writable staging for inbound 1C "Обмен с сайтом" files (mounted as a volume in
+# compose). Created owned by the runtime user so an empty named volume inherits
+# nextjs ownership and the app can write received catalog/offers files.
+RUN mkdir -p /app/exchange && chown nextjs:nodejs /app/exchange
 
 USER nextjs
 EXPOSE 3000

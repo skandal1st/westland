@@ -36,6 +36,10 @@ services:
       LICENSE_GRANT_PATH: ${LICENSE_GRANT_PATH:-/app/deployment/config/license.json}
       LICENSE_INSTALLATION_KEY_PATH: ${LICENSE_INSTALLATION_KEY_PATH:-/app/deployment/secrets/installation-private-key.pem}
       LICENSE_PUBLISHER_PUBLIC_KEY_PATH: ${LICENSE_PUBLISHER_PUBLIC_KEY_PATH:-/app/deployment/config/publisher-public.pem}
+      # 1C "Обмен с сайтом" Basic-auth credentials (the login/password entered in
+      # the client's 1C exchange node). Provided via deployment/secrets/.env.
+      ONEC_EXCHANGE_USER: ${ONEC_EXCHANGE_USER:-}
+      ONEC_EXCHANGE_PASSWORD: ${ONEC_EXCHANGE_PASSWORD:-}
     # Loopback only: nginx (on the host) proxies to 127.0.0.1:3000; the app is
     # never reachable directly, so all traffic goes through TLS + security headers.
     ports:
@@ -43,9 +47,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    # Deployment config/secrets (store profile + license grant + identity key).
+    # Deployment config/secrets (store profile + license grant + identity key)
+    # read-only; inbound 1C exchange files land in a dedicated writable volume.
     volumes:
       - ./deployment:/app/deployment:ro
+      - onec_exchange:/app/exchange
     # Apply committed migrations, then start. Never `db push` in a deployment.
     command: sh -c "node_modules/.bin/prisma migrate deploy && node server.js"
     healthcheck:
@@ -57,3 +63,4 @@ services:
 
 volumes:
   postgres_data:
+  onec_exchange:

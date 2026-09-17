@@ -61,11 +61,18 @@ export async function listCatalog(input: {
   skip?: number
   groupId?: string | null
   channelId?: string | null
+  categorySlug?: string | null
+  brandSlug?: string | null
   date?: Date
 }): Promise<{ items: CatalogItem[]; total: number }> {
   const take = Math.min(Math.max(input.take ?? 50, 1), 100)
   const skip = Math.max(input.skip ?? 0, 0)
-  const where = { storeId: input.storeId, status: 'ACTIVE' as const }
+  const where = {
+    storeId: input.storeId,
+    status: 'ACTIVE' as const,
+    ...(input.categorySlug ? { category: { slug: input.categorySlug } } : {}),
+    ...(input.brandSlug ? { brand: { slug: input.brandSlug } } : {}),
+  }
   const [rows, total] = await Promise.all([
     prisma.product.findMany({
       where,
@@ -96,6 +103,33 @@ export async function listCatalog(input: {
   }
 
   return { items, total }
+}
+
+export type CatalogNav = {
+  categories: { name: string; slug: string }[]
+  brands: { name: string; slug: string }[]
+}
+
+/**
+ * Storefront navigation: categories and brands that actually have at least one
+ * storefront-ready product (ACTIVE + commerce overlay). Empty until a catalog is
+ * imported, so the mega-menu reflects the real assortment rather than demo data.
+ */
+export async function listCatalogNav(storeId: string): Promise<CatalogNav> {
+  const hasStorefrontProduct = { some: { status: 'ACTIVE' as const, content: { isNot: null } } }
+  const [categories, brands] = await Promise.all([
+    prisma.category.findMany({
+      where: { storeId, products: hasStorefrontProduct },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      select: { name: true, slug: true },
+    }),
+    prisma.brand.findMany({
+      where: { storeId, products: hasStorefrontProduct },
+      orderBy: { name: 'asc' },
+      select: { name: true, slug: true },
+    }),
+  ])
+  return { categories, brands }
 }
 
 export async function getProductBySlug(storeId: string, slug: string): Promise<CatalogItem | null> {

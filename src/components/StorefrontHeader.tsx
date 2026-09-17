@@ -3,17 +3,28 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { Menu, Package, Search, ShoppingCart, UserRound, X } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { PaletteSwitcher } from '@/components/PaletteSwitcher'
-import { brands, categories } from '@/lib/demo-data'
 import { useStoreProfile } from '@/lib/store-profile-context'
 import { useCart } from '@/lib/cart/cart-context'
+
+type CatalogNav = { categories: { name: string; slug: string }[]; brands: { name: string; slug: string }[] }
 
 export function StorefrontHeader() {
   const profile = useStoreProfile()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [nav, setNav] = useState<CatalogNav>({ categories: [], brands: [] })
   const { view, count, setOpen: setCartOpen } = useCart()
   const total = view.total
+
+  useEffect(() => {
+    let active = true
+    fetch('/api/catalog/nav')
+      .then((r) => (r.ok ? r.json() : { categories: [], brands: [] }))
+      .then((data) => { if (active) setNav({ categories: data.categories ?? [], brands: data.brands ?? [] }) })
+      .catch(() => {})
+    return () => { active = false }
+  }, [])
   return (
     <header className="site-header">
       <div className="header-inner">
@@ -44,17 +55,15 @@ export function StorefrontHeader() {
         <div className="mega-menu">
           <div className="mega-column">
             <strong>Все товары</strong>
-            {categories.map((category, index) => <Link className={index === 1 ? 'active' : ''} key={category.name} href={'/catalog?category=' + encodeURIComponent(category.name)} onClick={() => setMenuOpen(false)}>{category.name}<span>›</span></Link>)}
+            {nav.categories.length === 0
+              ? <p className="mega-empty">Категории появятся после импорта каталога.</p>
+              : nav.categories.map((category) => <Link key={category.slug} href={'/catalog?category=' + encodeURIComponent(category.slug)} onClick={() => setMenuOpen(false)}>{category.name}<span>›</span></Link>)}
           </div>
           <div className="mega-column">
             <strong>Бренды</strong>
-            {brands.map((brand, index) => <Link className={index === 0 ? 'active' : ''} key={brand} href={'/catalog?brand=' + encodeURIComponent(brand)} onClick={() => setMenuOpen(false)}>{brand}<span>›</span></Link>)}
-          </div>
-          <div className="mega-column mega-feature">
-            <strong>Популярные разделы</strong>
-            <Link className="active" href="/catalog?category=Табак">Табак 25 г</Link>
-            <Link href="/catalog?category=Табак">Табак 100 г</Link>
-            <Link href="/catalog?category=Аксессуары">Аксессуары</Link>
+            {nav.brands.length === 0
+              ? <p className="mega-empty">Бренды появятся после импорта каталога.</p>
+              : nav.brands.map((brand) => <Link key={brand.slug} href={'/catalog?brand=' + encodeURIComponent(brand.slug)} onClick={() => setMenuOpen(false)}>{brand.name}<span>›</span></Link>)}
           </div>
         </div>
       ) : null}

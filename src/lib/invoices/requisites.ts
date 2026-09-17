@@ -15,6 +15,7 @@ export const SellerRequisitesSchema = z.object({
   companyName: z.string().min(1),
   inn: z.string().min(1),
   kpp: z.string().optional(),
+  city: z.string().optional(),
   legalAddress: z.string().optional(),
   phone: z.string().optional(),
   email: z.string().optional(),
@@ -36,6 +37,38 @@ export const SellerRequisitesSchema = z.object({
 })
 
 export type SellerRequisites = z.infer<typeof SellerRequisitesSchema>
+
+/**
+ * Backoffice input for store-level seller requisites: every field optional so
+ * staff can fill them incrementally. Issuance still validates the strict
+ * SellerRequisitesSchema (company + INN required), so a partial save can never
+ * emit a legally empty invoice — it just blocks issue with a clear error.
+ */
+export const StoreRequisitesInputSchema = z.object({
+  companyName: z.string().trim().max(200).optional(),
+  inn: z.string().trim().max(20).optional(),
+  kpp: z.string().trim().max(20).optional(),
+  city: z.string().trim().max(100).optional(),
+  legalAddress: z.string().trim().max(300).optional(),
+  phone: z.string().trim().max(50).optional(),
+  email: z.string().trim().max(120).optional(),
+  bank: z
+    .object({
+      name: z.string().trim().max(200).optional(),
+      bik: z.string().trim().max(20).optional(),
+      account: z.string().trim().max(40).optional(),
+      corAccount: z.string().trim().max(40).optional(),
+    })
+    .partial()
+    .optional(),
+  directorName: z.string().trim().max(200).optional(),
+  accountantName: z.string().trim().max(200).optional(),
+  vatEnabled: z.boolean().optional(),
+  vatRate: z.number().nonnegative().max(100).optional(),
+  paymentPurpose: z.string().trim().max(300).optional(),
+})
+
+export type StoreRequisitesInput = z.infer<typeof StoreRequisitesInputSchema>
 
 /** Buyer identity snapshot (from the order's customer + delivery point). */
 export type BuyerSnapshot = {

@@ -11,6 +11,7 @@ import { ContentPanel } from '@/components/ContentPanel'
 import { PromoPanel } from '@/components/PromoPanel'
 import { LicensePanel } from '@/components/LicensePanel'
 import { OrdersPanel } from '@/components/OrdersPanel'
+import { SettingsPanel } from '@/components/SettingsPanel'
 import { useStoreProfile } from '@/lib/store-profile-context'
 
 type PendingRequest = {
@@ -110,7 +111,7 @@ export function StaffDashboard() {
 
         {section === 'Лицензия' ? <LicensePanel /> : null}
 
-        {section === 'Настройки' ? <div className="staff-placeholder"><h2>Настройки</h2><p>Раздел подготовлен в архитектуре и будет подключён на следующем этапе.</p></div> : null}
+        {section === 'Настройки' ? <SettingsPanel /> : null}
       </section>
     </main>
   )

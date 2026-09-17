@@ -32,7 +32,7 @@ export function DeliveryPointsClient() {
       {adding ? (
         <form className="location-form" onSubmit={submit}>
           <h2>Новая точка</h2>
-          <div className="form-row"><label>Название<input required value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Например, бар на Невском" /></label><label>Город<input required value={draft.city} onChange={(event) => setDraft({ ...draft, city: event.target.value })} placeholder="Санкт-Петербург" /></label></div>
+          <div className="form-row"><label>Название<input required value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Название точки" /></label><label>Город<input required value={draft.city} onChange={(event) => setDraft({ ...draft, city: event.target.value })} placeholder="Город" /></label></div>
           <label>Адрес<input required value={draft.address} onChange={(event) => setDraft({ ...draft, address: event.target.value })} placeholder="Улица, дом, помещение" /></label>
           <div className="form-row"><label>Контакт на точке<input value={draft.contactName} onChange={(event) => setDraft({ ...draft, contactName: event.target.value })} placeholder="Имя сотрудника" /></label><label>Телефон<input type="tel" value={draft.contactPhone} onChange={(event) => setDraft({ ...draft, contactPhone: event.target.value })} placeholder="+7 000 000-00-00" /></label></div>
           {error ? <p className="auth-error" role="alert">{error}</p> : null}

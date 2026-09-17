@@ -1,6 +1,7 @@
 'use client'
 
 import { Banknote, CreditCard, Filter, Minus, Plus, SlidersHorizontal } from 'lucide-react'
+import { useSearchParams } from 'next/navigation'
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useCart } from '@/lib/cart/cart-context'
 
@@ -34,6 +35,9 @@ export function CatalogClient() {
   const [banners, setBanners] = useState<StorefrontBanner[]>([])
   const deferredQuery = useDeferredValue(query)
   const channelId = view.channelId
+  const searchParams = useSearchParams()
+  const categorySlug = searchParams.get('category') ?? ''
+  const brandSlug = searchParams.get('brand') ?? ''
 
   useEffect(() => {
     fetch('/api/content?placement=CATALOG')
@@ -53,13 +57,17 @@ export function CatalogClient() {
   useEffect(() => {
     let active = true
     setLoading(true)
-    const url = channelId ? `/api/catalog?channel=${encodeURIComponent(channelId)}` : '/api/catalog'
-    fetch(url)
+    const params = new URLSearchParams()
+    if (channelId) params.set('channel', channelId)
+    if (categorySlug) params.set('category', categorySlug)
+    if (brandSlug) params.set('brand', brandSlug)
+    const qs = params.toString()
+    fetch(qs ? `/api/catalog?${qs}` : '/api/catalog')
       .then((r) => (r.ok ? r.json() : { items: [] }))
       .then((data) => { if (active) setItems(data.items ?? []) })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [channelId])
+  }, [channelId, categorySlug, brandSlug])
 
   const visible = useMemo(() => {
     const needle = deferredQuery.toLowerCase()
@@ -115,7 +123,7 @@ export function CatalogClient() {
           <p className="filter-note">Категории и бренды станут фильтрами в следующих версиях.</p>
         </aside>
         <section className="products-region">
-          <div className="catalog-toolbar"><span>Найдено: {visible.length}</span></div>
+          <div className="catalog-toolbar"><span>Найдено: {visible.length}</span>{(categorySlug || brandSlug) ? <a className="catalog-reset" href="/catalog">Сбросить фильтр</a> : null}</div>
           <div className="product-list">
             {loading ? <div className="product-list-hint">Загрузка каталога…</div> : null}
             {!loading && visible.length === 0 ? <div className="product-list-hint">Каталог пуст — товары появятся после импорта из учётной системы.</div> : null}

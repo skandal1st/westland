@@ -22,9 +22,11 @@ export async function GET(request: Request) {
   const take = Number(url.searchParams.get('take') ?? '50')
   const skip = Number(url.searchParams.get('skip') ?? '0')
   const channelId = url.searchParams.get('channel') || undefined
+  const categorySlug = url.searchParams.get('category') || undefined
+  const brandSlug = url.searchParams.get('brand') || undefined
   const store = await getActiveStore()
   const groupId = user ? await resolveBuyerPriceGroupId(user) : null
 
-  const { items, total } = await listCatalog({ storeId: store.id, take, skip, groupId, channelId })
+  const { items, total } = await listCatalog({ storeId: store.id, take, skip, groupId, channelId, categorySlug, brandSlug })
   return NextResponse.json({ items, total })
 }

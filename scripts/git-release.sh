@@ -16,6 +16,8 @@ printf '%s\n' "$revision" > "$release/commit.txt"
 docker build --label "org.opencontainers.image.revision=$revision" -t "axima-commerce:git-$revision" .
 image=$(docker image inspect --format '{{.Id}}' "axima-commerce:git-$revision")
 printf '%s\n' "$image" > "$release/image.txt"
+# Validate runtime readability before stopping any writers (checkout may use umask 077).
+docker run --rm --network none --entrypoint node "$image" -e 'const fs=require("fs");function check(p){const d=fs.statSync(p).isDirectory();fs.accessSync(p,fs.constants.R_OK|(d?fs.constants.X_OK:0));if(d)for(const f of fs.readdirSync(p))check(p+"/"+f)}for(const p of ["/app/public","/app/prisma","/app/scripts","/app/packages/license-core"])check(p);console.log("PASS: runtime source files readable")'
 cd "$installation"
 node scripts/deploy.mjs update --image "$image"
 cp deployment/last-operation.json "$release/update-operation.json"

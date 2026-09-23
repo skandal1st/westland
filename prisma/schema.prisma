@@ -262,6 +262,7 @@ model Category {
   sortOrder Int        @default(0)
   hidden    Boolean    @default(false)
   products  Product[]
+  banners   SiteBanner[]
 
   @@unique([storeId, slug])
 }
@@ -705,6 +706,9 @@ model InvoiceLine {
 }
 
 model SiteBanner {
+  categoryId      String?
+  category        Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  @@index([categoryId])
   id              String          @id @default(cuid())
   storeId         String
   store           Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)

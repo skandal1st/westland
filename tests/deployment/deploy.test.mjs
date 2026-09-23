@@ -44,3 +44,10 @@ test('install/update/restore exclude one another; only backup may inherit live u
    assert.throws(() => assertAdditiveMigration(sql + '\nDELETE FROM "Order";'))
    assert.throws(() => assertAdditiveMigration(sql.replace('"giftSelections" JSONB', '"giftSelections" JSONB NOT NULL')))
  })
+
+test('reviewed category banner expansion accepts only its exact artifact',()=>{
+ const sql=fs.readFileSync(new URL('../../prisma/migrations/20260924010000_banner_category/migration.sql',import.meta.url),'utf8')
+ assert.doesNotThrow(()=>assertAdditiveMigration(sql))
+ assert.throws(()=>assertAdditiveMigration(sql+'\nDELETE FROM "Order";'))
+ assert.throws(()=>assertAdditiveMigration(sql.replace('TEXT;','TEXT NOT NULL;')))
+})

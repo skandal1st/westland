@@ -1,3 +1,4 @@
+import { categoryAncestry } from '@/lib/catalog/tree'
 import { effectiveCapabilities } from '@/lib/capabilities'
 import { decimal, money, type DecimalInput } from '@/lib/money'
 import type { Prisma, PrismaClient } from '@prisma/client'
@@ -35,7 +36,7 @@ export type PromotionRule = {
 }
 
 /** What a variant is, for scope matching. */
-export type PromotionTarget = { variantId: string; brandId?: string | null; categoryId?: string | null }
+export type PromotionTarget = { variantId: string; brandId?: string | null; categoryId?: string | null; categoryAncestorIds?: string[] }
 
 export type PromotedPrice = { amount: number; listAmount: number; promotionIds: string[] }
 
@@ -59,6 +60,7 @@ export function promotionScopeMatches(scope: PromotionScope | null | undefined, 
   if (variantIds.includes(target.variantId)) return true
   if (target.brandId && brandIds.includes(target.brandId)) return true
   if (target.categoryId && categoryIds.includes(target.categoryId)) return true
+  if (target.categoryAncestorIds?.some(id=>categoryIds.includes(id))) return true
   return false
 }
 
@@ -128,8 +130,9 @@ export async function loadPromotionContext(
     endsAt: r.endsAt,
     scope: (r.scope as PromotionScope | null) ?? null,
   }))
+  const ancestry=categoryAncestry(rows.length?await client.category.findMany({where:{storeId:input.storeId},select:{id:true,parentId:true}}):[])
   const targets = new Map<string, PromotionTarget>()
-  for (const v of variants) targets.set(v.id, { variantId: v.id, brandId: v.product.brandId, categoryId: v.product.categoryId })
+  for (const v of variants) targets.set(v.id, { variantId: v.id, brandId: v.product.brandId, categoryId: v.product.categoryId, categoryAncestorIds:ancestry(v.product.categoryId) })
   return { rules, targets }
 }
 

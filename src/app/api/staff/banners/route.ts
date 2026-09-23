@@ -18,7 +18,7 @@ export async function GET() {
     where: { storeId: store.id },
     orderBy: [{ placement: 'asc' }, { sortOrder: 'asc' }],
     select: {
-      id: true, name: true, placement: true, brandId: true, campaignId: true,
+      id: true, name: true, placement: true, categoryId: true, category: { select: { name: true } }, brandId: true, campaignId: true,
       desktopImageUrl: true, mobileImageUrl: true, linkUrl: true, isActive: true, sortOrder: true, startsAt: true, endsAt: true,
       brand: { select: { name: true } },
     },

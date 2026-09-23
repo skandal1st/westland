@@ -756,3 +756,30 @@ a { color: inherit; }
 .brand-tree-label small{display:block;font-size:12px;color:var(--muted);margin-top:3px}
 .brand-tree-link{font-size:13px;flex-shrink:0}
 @media(max-width:700px){.brand-tree-row{flex-wrap:wrap;padding-right:8px}.brand-tree-label{flex-basis:calc(100% - 38px)}.brand-tree-link{margin:0 0 4px 38px}.brand-tree-toolbar span{flex-basis:100%}}
+
+/* Hierarchical catalog: every column has its own vertical scroll, deep paths scroll horizontally. */
+.catalog-menu-shade{position:fixed;inset:94px 0 0;background:rgba(25,18,34,.18);border:0;border-radius:0;z-index:1;width:100%;padding:0}
+.mega-menu.hierarchy-menu{position:fixed;z-index:2;width:min(1200px,calc(100vw - 32px));min-height:0;display:block;padding:0;overflow:hidden;color:var(--ink);background:var(--canvas)}
+.cascade-menu{height:100%;display:flex;flex-direction:column;min-height:0}
+.cascade-menu-intro{display:flex;flex-wrap:wrap;align-items:center;gap:16px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.cascade-menu-intro>a{font-weight:700;color:var(--purple)}
+.cascade-menu-intro>span{font-size:13px;color:var(--muted)}
+.cascade-columns{display:flex;flex:1;min-height:0;overflow-x:auto;overscroll-behavior:contain;align-items:stretch;scrollbar-gutter:stable}
+.cascade-column{flex:0 0 260px;min-width:0;overflow-y:auto;overscroll-behavior:contain;border-right:1px solid var(--line);padding:0 8px 14px;scrollbar-gutter:stable}
+.cascade-column-heading{position:sticky;top:0;background:var(--canvas);padding:14px 10px;z-index:1;overflow-wrap:anywhere}
+.cascade-column-heading strong{display:block;font-size:14px}
+.cascade-column-heading>a{display:block;color:var(--purple);font-size:13px;margin-top:6px}
+.cascade-item{display:flex;justify-content:space-between;align-items:center;gap:10px;text-align:left;width:100%;min-height:44px;padding:10px;border:0;background:transparent;border-radius:6px;color:var(--ink);font-size:14px;overflow-wrap:anywhere}
+.cascade-item>span{min-width:0}.cascade-item>svg,.cascade-item>small{flex-shrink:0}
+.cascade-item.selected,.cascade-item:hover{background:var(--selected-bg);color:var(--purple)}
+.category-tree-level{list-style:none;margin:0;padding:0}.category-tree-row{display:flex;align-items:center;min-height:38px;border-radius:4px}.category-tree-row.selected{background:var(--selected-bg);color:var(--purple)}
+.category-tree-disclosure{display:grid;place-items:center;flex:0 0 28px;width:28px;min-height:38px;padding:0;border:0;background:transparent;color:inherit}
+.category-tree-spacer{flex:0 0 28px}.category-tree-choice{display:flex;align-items:center;justify-content:space-between;gap:8px;flex:1;min-width:0;text-align:left;min-height:38px;padding:8px 6px;border:0;background:transparent;color:inherit;font-size:14px}.category-tree-choice>span{overflow-wrap:anywhere;min-width:0}.category-tree-choice>small{flex-shrink:0;color:var(--muted)}
+.category-tree-row:hover{background:var(--selected-bg)}.category-tree-search{display:block;margin-bottom:12px}.category-tree-search input{width:100%}
+.catalog-breadcrumbs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;font-size:13px}.catalog-breadcrumbs a{color:var(--purple)}.catalog-breadcrumbs a+a:before{content:'/';color:var(--muted);margin-right:8px}
+.banner-category-picker{border:1px solid var(--line);padding:14px;border-radius:10px;margin:16px 0}.banner-category-picker .category-tree-control{max-height:360px;overflow:auto}.banner-category-picker>p{font-size:13px;color:var(--muted)}
+.category-admin-layout{display:grid;grid-template-columns:minmax(220px,1fr) minmax(0,2fr);gap:16px;margin:16px 0}.category-admin-layout>.category-tree-control{max-height:420px;overflow:auto}.category-admin-layout .site-category-list{max-height:none}
+.catalog-facet-group .category-tree-disclosure{width:28px;padding:0;display:grid}.catalog-facet-group .category-tree-choice{width:auto;padding:8px 6px}.catalog-facet-group .category-tree-control{max-height:65dvh;overflow:auto}
+@media(max-width:700px){.mega-menu.hierarchy-menu{width:calc(100vw - 16px)}.cascade-column{flex-basis:min(260px,calc(100vw - 54px))}.cascade-menu-intro{padding:12px}.cascade-menu-intro>span{display:none}.category-admin-layout{grid-template-columns:minmax(0,1fr)}.category-admin-layout>.category-tree-control{max-height:300px}}
+
+.cascade-back{border:0;background:transparent;color:var(--purple);padding:4px 8px;margin-left:auto;min-height:32px}

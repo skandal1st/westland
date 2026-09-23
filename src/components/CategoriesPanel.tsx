@@ -1,18 +1,22 @@
 'use client'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRemoteResource, readArray } from '@/lib/use-remote-resource'
-type Category = { id: string; name: string; slug: string; hidden: boolean; sortOrder: number; products: number }
+import { CategoryTreeControl, choicesFromRows } from './CategoryTreeControl'
+type Category = { id: string; parentId: string | null; name: string; slug: string; hidden: boolean; sortOrder: number; products: number }
 type Group = { externalId: string; name: string; path: string[]; depth: number; categoryId: string | null; effectiveCategoryId: string | null }
 const decode = (v: unknown) => readArray<Category>(v, 'categories')
 const decodeGroups = (v: unknown) => ({ groups: readArray<Group>(v, 'groups'), hasConnection: (v as { hasConnection: boolean }).hasConnection })
 export function CategoriesPanel() {
+  const [activeCategory, setActiveCategory] = useState('')
   const categories = useRemoteResource('/api/staff/categories', decode)
   const source = useRemoteResource('/api/staff/category-groups', decodeGroups)
   const [name,setName] = useState(''), [query,setQuery] = useState(''), [onlyRoots,setOnlyRoots] = useState(true)
   const [selected,setSelected] = useState<string[]>([]), [target,setTarget] = useState('')
   const [busy,setBusy] = useState(false), [message,setMessage] = useState('')
   const list = categories.data ?? []
+  const categoryTree = useMemo(()=>choicesFromRows(categories.data??[]),[categories.data])
+  const activeId = activeCategory || list.find(c=>!c.parentId)?.id
   const mutate = async (url: string, method: string, body: unknown) => {
     setBusy(true);setMessage('')
     try {
@@ -34,13 +38,13 @@ export function CategoriesPanel() {
     {message?<p role="status">{message}</p>:null}
     {categories.loading?<p role="status">Загрузка категорий…</p>:null}
     {categories.error?<p role="alert">{categories.error} <button onClick={categories.reload}>Повторить</button></p>:null}
-    <div className="site-category-list">{list.map(c=><div className="site-category-row" key={c.id+c.name+c.sortOrder}>
+    <div className="category-admin-layout"><CategoryTreeControl nodes={categoryTree} selectedId={activeId} onSelect={node=>setActiveCategory(node.id)} searchable/><div className="site-category-list">{list.filter(c=>c.id===activeId).map(c=><div className="site-category-row" key={c.id+c.name+c.sortOrder}>
       <label>Название<input aria-label={'Название '+c.name} defaultValue={c.name} maxLength={200} disabled={busy} onBlur={e=>{const value=e.target.value.trim();if(value&&value!==c.name)void mutate('/api/staff/categories/'+c.id,'PATCH',{name:value});else if(!value)e.target.value=c.name}} /></label>
       <label>Порядок<input aria-label={'Порядок '+c.name} type="number" min="0" max="100000" defaultValue={c.sortOrder} disabled={busy} onBlur={e=>{const value=Number(e.target.value);if(value!==c.sortOrder&&Number.isInteger(value)&&value>=0)void mutate('/api/staff/categories/'+c.id,'PATCH',{sortOrder:value})}} /></label>
       <span>{c.products.toLocaleString('ru-RU')} товаров</span><button type="button" disabled={busy} onClick={()=>mutate('/api/staff/categories/'+c.id,'PATCH',{hidden:!c.hidden})}>{c.hidden?'Показать':'Скрыть'}</button><Link href={'/catalog?category='+encodeURIComponent(c.slug)}>Открыть</Link>
-    </div>)}</div>
+    </div>)}</div></div>
     <h2>Папки 1С → категории сайта</h2>
-    <p className="settings-note">Отметьте папки и выберите категорию сайта. Правило включает все вложенные папки, в том числе новые товары при следующей загрузке. Если вложенной папке назначена своя категория, действует её правило. Снятие соответствия возвращает товары к правилу родителя или исходной категории.</p>
+    <p className="settings-note">Отметьте папки и выберите категорию сайта. Вложенные папки сохраняют свою структуру внутри выбранной категории, включая новые папки при следующей загрузке. Если вложенной папке назначена своя категория, действует её правило. Снятие соответствия возвращает товары к правилу родителя или исходной категории.</p>
     <div className="admin-toolbar"><label>Поиск папки<input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Название или путь в 1С" /></label><label className="admin-check"><input type="checkbox" checked={onlyRoots} onChange={e=>setOnlyRoots(e.target.checked)} />Только первый уровень</label></div>
     <fieldset className="admin-merge" disabled={busy || source.loading}>
       <legend>Выбрано папок: {selected.length}</legend><div className="admin-toolbar"><label>Категория сайта<select value={target} onChange={e=>setTarget(e.target.value)}><option value="">Выберите категорию</option>{list.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>

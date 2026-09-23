@@ -25,6 +25,7 @@ export async function mergeCategories(storeId: string, targetId: string, sourceI
     // ExternalReference is one-to-one in both directions. Preserve each source category as a hidden alias.
     await tx.category.updateMany({ where: { storeId, mergedIntoId: { in: ids } }, data: { mergedIntoId: targetId } })
     await tx.category.updateMany({ where: { storeId, parentId: { in: ids }, id: { notIn: [...ids, targetId] } }, data: { parentId: targetId } })
+    await tx.siteBanner.updateMany({ where: { storeId, categoryId: { in: ids } }, data: { categoryId: targetId } })
     const rules = await tx.giftPromotion.findMany({ where: { storeId } })
     for (const promotion of rules) {
       const parsed = giftRuleSchema.safeParse(promotion.rule)

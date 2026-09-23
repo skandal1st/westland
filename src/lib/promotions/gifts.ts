@@ -1,3 +1,4 @@
+import { categoryAncestry } from '@/lib/catalog/tree'
 import { z } from 'zod'
 import { Prisma, type PrismaClient } from '@prisma/client'
 import { prisma } from '@/lib/db'
@@ -11,8 +12,8 @@ type Facets = GiftRule['condition']
 type Client = PrismaClient | Prisma.TransactionClient
 export type GiftCandidate = { variantId: string; productId: string; name: string; sku: string; sourceSku: string | null; packaging: string; available: number }
 export type GiftOffer = { id: string; name: string; quantity: number; remaining: number; requiresChoice: boolean; selection: string | null; gift: GiftCandidate | null; unavailable: boolean }
-export function matchesGiftCondition(f: Facets, item: { productId: string; brandId: string | null; categoryId: string | null; packaging: string }) {
-  return (!f.productId || f.productId === item.productId) && (!f.brandId || f.brandId === item.brandId) && (!f.categoryId || f.categoryId === item.categoryId) && (!f.packaging || f.packaging === item.packaging)
+export function matchesGiftCondition(f: Facets, item: { productId: string; brandId: string | null; categoryId: string | null; categoryAncestorIds?: string[]; packaging: string }) {
+  return (!f.productId || f.productId === item.productId) && (!f.brandId || f.brandId === item.brandId) && (!f.categoryId || (f.categoryId === item.categoryId || item.categoryAncestorIds?.includes(f.categoryId))) && (!f.packaging || f.packaging === item.packaging)
 }
 export function earnedGifts(rule: GiftRule, quantity: Prisma.Decimal) {
   return Math.min(quantity.div(rule.minQty).floor().mul(rule.rewardQty).toNumber(), rule.maxRewardQty ?? 100000)
@@ -27,15 +28,17 @@ export async function validateGiftRule(storeId: string, rule: GiftRule, client: 
   if (await client.priceGroup.count({ where: { storeId, id: { in: rule.priceGroupIds } } }) !== new Set(rule.priceGroupIds).size) return false
   return true
 }
-function rewardWhere(storeId: string, channelId: string, f: Facets, qty: number, search = ''): Prisma.ProductVariantWhereInput {
+function rewardWhere(storeId: string, channelId: string, f: Facets, qty: number, search = '', categoryIds?: string[]): Prisma.ProductVariantWhereInput {
   return { storeId, isDefault: true, status: 'ACTIVE', ...(f.packaging ? { packaging: f.packaging } : {}),
-    product: { storeId, status: 'ACTIVE', ...(f.productId ? { id: f.productId } : {}), ...(f.brandId ? { brandId: f.brandId } : {}), ...(f.categoryId ? { categoryId: f.categoryId } : {}),
+    product: { storeId, status: 'ACTIVE', ...(f.productId ? { id: f.productId } : {}), ...(f.brandId ? { brandId: f.brandId } : {}), ...(f.categoryId ? { categoryId: { in: categoryIds ?? [f.categoryId] } } : {}),
       ...(search ? { OR: [{ canonicalName: { contains: search, mode: 'insensitive' } }, { content: { displayName: { contains: search, mode: 'insensitive' } } }, { variants: { some: { sourceSku: { contains: search, mode: 'insensitive' } } } }] } : {}) },
     availability: { some: { fulfillmentChannelId: channelId, availableQuantity: { gte: qty } } },
   }
 }
 async function candidateList(storeId: string, channelId: string, f: Facets, qty: number, client: Client, options: { variantId?: string; search?: string; take?: number } = {}): Promise<GiftCandidate[]> {
-  const rows = await client.productVariant.findMany({ where: { ...rewardWhere(storeId, channelId, f, qty, options.search), ...(options.variantId ? { id: options.variantId } : {}) },
+  const categories=f.categoryId?await client.category.findMany({where:{storeId},select:{id:true,parentId:true}}):[]
+  const ancestry=categoryAncestry(categories),categoryIds=f.categoryId?categories.filter(c=>ancestry(c.id).includes(f.categoryId!)).map(c=>c.id):undefined
+  const rows = await client.productVariant.findMany({ where: { ...rewardWhere(storeId, channelId, f, qty, options.search, categoryIds), ...(options.variantId ? { id: options.variantId } : {}) },
     take: options.take ?? 50, orderBy: [{ product: { canonicalName: 'asc' } }, { id: 'asc' }],
     select: { id: true, productId: true, sku: true, sourceSku: true, packaging: true, product: { select: { canonicalName: true, content: { select: { displayName: true } } } }, availability: { where: { fulfillmentChannelId: channelId }, select: { availableQuantity: true } } } })
   return rows.map(v => ({ variantId: v.id, productId: v.productId, sku: v.sku, sourceSku: v.sourceSku, packaging: v.packaging, name: v.product.content?.displayName ?? v.product.canonicalName, available: Number(v.availability[0]?.availableQuantity ?? 0) }))
@@ -49,6 +52,7 @@ export async function getGiftOffers(user: SessionUser, cart: { fulfillmentChanne
     client.productVariant.findMany({ where: { id: { in: cart.items.map(i => i.variantId) }, storeId: user.storeId, status: 'ACTIVE', product: { status: 'ACTIVE' } }, select: { id: true, productId: true, packaging: true, product: { select: { brandId: true, categoryId: true } } } }),
     resolveBuyerPriceGroupId(user, client),
   ])
+  const ancestry=categoryAncestry(promotions.length?await client.category.findMany({where:{storeId:user.storeId},select:{id:true,parentId:true}}):[])
   const byId = new Map(variants.map(v => [v.id, v])), consumed = new Map(cart.items.map(i => [i.variantId, Number(i.quantity)]))
   const selections = (cart.giftSelections ?? {}) as Record<string, unknown>
   const offers: GiftOffer[] = []
@@ -58,7 +62,7 @@ export async function getGiftOffers(user: SessionUser, cart: { fulfillmentChanne
     const rule = parsed.data
     if (rule.channelIds.length && !rule.channelIds.includes(channelId) || rule.priceGroupIds.length && (!groupId || !rule.priceGroupIds.includes(groupId))) continue
     let matched = new Prisma.Decimal(0)
-    for (const item of cart.items) { const v = byId.get(item.variantId); if (v && matchesGiftCondition(rule.condition, { ...v, ...v.product })) matched = matched.add(item.quantity) }
+    for (const item of cart.items) { const v = byId.get(item.variantId); if (v && matchesGiftCondition(rule.condition, { ...v, ...v.product, categoryAncestorIds:ancestry(v.product.categoryId) })) matched = matched.add(item.quantity) }
     if (matched.lte(0)) continue
     const quantity = earnedGifts(rule, matched)
     const remaining = quantity >= (rule.maxRewardQty ?? 100000) ? 0 : new Prisma.Decimal(rule.minQty).sub(matched.mod(rule.minQty)).toNumber()

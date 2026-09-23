@@ -8,6 +8,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { readArray, useRemoteResource } from '@/lib/use-remote-resource'
 import { useCallback, useEffect, useState, useTransition, type FormEvent } from 'react'
 import { useCart } from '@/lib/cart/cart-context'
+import { CategoryTreeControl } from './CategoryTreeControl'
+import type { CategoryNode } from '@/lib/catalog/tree'
 import { StoreBanners, type StorefrontBanner } from './StoreBanners'
 
 type Channel = { id: string; code: string; name: string; paymentMethod: 'BANK_TRANSFER' | 'CASH' }
@@ -41,7 +43,7 @@ const decodeCatalog = (value: unknown) => {
 }
 
 type Facet = { name: string; slug: string; count: number }
-type Facets = { categories: Facet[]; brands: Facet[]; category: {name:string;slug:string}|null; brand: {name:string;slug:string}|null }
+type Facets = { tree: CategoryNode[]; trail: {id:string;name:string;slug:string}[]; categories: Facet[]; brands: Facet[]; category: {name:string;slug:string}|null; brand: {name:string;slug:string}|null }
 const decodeFacets = (value: unknown) => value as Facets
 export function CatalogClient({ fixedBrand }: { fixedBrand?: { name: string; slug: string } } = {}) {
   const { view, ready, loadError: cartError, changeError, retryChange, updating, refresh: refreshCart, setChannel, setItem, quantityOf } = useCart()
@@ -62,9 +64,9 @@ export function CatalogClient({ fixedBrand }: { fixedBrand?: { name: string; slu
   useEffect(() => { setQuery(search) }, [search])
 
   const channelResource = useRemoteResource('/api/channels', decodeChannels)
-  const bannerResource = useRemoteResource('/api/content?placement=CATALOG', decodeBanners)
+  const bannerResource = useRemoteResource('/api/content?placement=CATALOG' + (categorySlug ? '&category='+encodeURIComponent(categorySlug) : '') + (brandSlug ? '&brand='+encodeURIComponent(brandSlug) : ''), decodeBanners)
   const channels = channelResource.data ?? []
-  const banners = (bannerResource.data ?? []).filter(b => !brandSlug || b.brand?.slug === brandSlug)
+  const banners = bannerResource.data ?? []
   const params = new URLSearchParams({ take: String(PAGE_SIZE), skip: String((page - 1) * PAGE_SIZE) })
   if (channelId) params.set('channel', channelId)
   if (categorySlug) params.set('category', categorySlug)
@@ -79,6 +81,7 @@ export function CatalogClient({ fixedBrand }: { fixedBrand?: { name: string; slu
   const changeFilter = (kind: 'category'|'brand', value: string) => {
     const next = new URLSearchParams(searchParams.toString());next.delete('page')
     if(value)next.set(kind,value);else next.delete(kind)
+    if(kind==='category'&&!fixedBrand)next.delete('brand')
     startFilterTransition(() => router.push(basePath+(next.size?'?'+next.toString():''),{scroll:false}))
   }
   const title = fixedBrand?.name ?? facets.data?.category?.name ?? facets.data?.brand?.name ?? 'Каталог'
@@ -145,10 +148,10 @@ export function CatalogClient({ fixedBrand }: { fixedBrand?: { name: string; slu
           </form>
           {facets.loading ? <p role="status">Загрузка фильтров…</p> : null}
           {facets.error ? <div className="load-error" role="alert">{facets.error}<button onClick={facets.reload}>Повторить</button></div> : null}
-          <div className="catalog-facet-group"><h2>Категории</h2><button className={!categorySlug?'selected':''} aria-pressed={!categorySlug} disabled={filterPending} onClick={()=>changeFilter('category','')}>Все категории</button>{facets.data?.categories.map(c=><button key={c.slug} className={categorySlug===c.slug?'selected':''} aria-pressed={categorySlug===c.slug} disabled={filterPending} onClick={()=>changeFilter('category',c.slug)}><span>{c.name}</span><b>{c.count}</b></button>)}</div>
-          {!fixedBrand ? <div className="catalog-facet-group"><h2>Бренды</h2><button className={!brandSlug?'selected':''} aria-pressed={!brandSlug} disabled={filterPending} onClick={()=>changeFilter('brand','')}>Все бренды</button>{facets.data?.brands.map(b=><div className="catalog-brand-facet" key={b.slug}><button className={brandSlug===b.slug?'selected':''} aria-pressed={brandSlug===b.slug} disabled={filterPending} onClick={()=>changeFilter('brand',b.slug)}><span>{b.name}</span><b>{b.count}</b></button><Link href={'/brands/'+encodeURIComponent(b.slug)} aria-label={'Страница бренда '+b.name} title={'Страница бренда '+b.name}>↗</Link></div>)}{!facets.loading&&!facets.data?.brands.length?<p>В этой подборке бренды пока не назначены.</p>:null}</div> : <p className="filter-note">Товары бренда {fixedBrand.name}. <Link href="/catalog">Все бренды</Link></p>}
-        </aside>
+          <div className="catalog-facet-group"><h2>Категории</h2><button className={!categorySlug?'selected':''} aria-pressed={!categorySlug} disabled={filterPending} onClick={()=>changeFilter('category','')}>Все категории</button><CategoryTreeControl nodes={facets.data?.tree??[]} selectedId={facets.data?.trail?.at(-1)?.id} disabled={filterPending} onSelect={node=>changeFilter('category',node.slug??'')}/></div>
+          </aside>
         <section className="products-region" aria-busy={loading}>
+            {!!facets.data?.trail?.length?<nav className="catalog-breadcrumbs" aria-label="Путь категории"><Link href={basePath}>Каталог</Link>{facets.data.trail.map(n=><Link key={n.id} href={basePath+'?category='+encodeURIComponent(n.slug)}>{n.name}</Link>)}</nav>:null}
           <div className="catalog-toolbar"><span role="status">{loading ? 'Загрузка товаров…' : catalog.error ? 'Каталог недоступен' : `Найдено: ${total}`}</span>{(search || categorySlug || brandSlug) ? <Link className="catalog-reset" href={basePath}>Сбросить фильтры</Link> : null}</div>
           {catalog.error ? <div className="load-error" role="alert"><span>{catalog.error}</span><button type="button" onClick={catalog.reload}>Повторить загрузку каталога</button></div> : null}
           <div className="product-list">

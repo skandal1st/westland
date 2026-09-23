@@ -5,7 +5,7 @@ import { formatMoney } from '@/lib/money-format'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Menu, Package, ShoppingCart, UserRound, X } from 'lucide-react'
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { CatalogSearch } from '@/components/CatalogSearch'
 import { StorefrontContact } from '@/components/StorefrontContact'
 import { readArray, useRemoteResource } from '@/lib/use-remote-resource'
@@ -13,12 +13,17 @@ import { PaletteSwitcher } from '@/components/PaletteSwitcher'
 import { useStoreProfile } from '@/lib/store-profile-context'
 import { useCart } from '@/lib/cart/cart-context'
 
-type CatalogNav = { categories: { name: string; slug: string }[]; brands: { name: string; slug: string }[] }
+import { CascadeCatalogMenu } from './CascadeCatalogMenu'
+import type { CategoryNode } from '@/lib/catalog/tree'
+
+type CatalogNav = { categories: CategoryNode[]; brands: { name: string; slug: string }[] }
 
 const decodeNav = (value: unknown): CatalogNav => ({ categories: readArray(value, 'categories'), brands: readArray(value, 'brands') })
 
 export function StorefrontHeader() {
   const profile = useStoreProfile()
+  const header = useRef<HTMLElement>(null)
+  const [menuTop, setMenuTop] = useState(94)
   const [menuOpen, setMenuOpen] = useState(false)
   const navigation = useRemoteResource('/api/catalog/nav', decodeNav)
   const nav = navigation.data ?? { categories: [], brands: [] }
@@ -27,12 +32,16 @@ export function StorefrontHeader() {
 
   useEffect(() => {
     if (!menuOpen) return
+    const position = () => setMenuTop(header.current?.getBoundingClientRect().bottom ?? 94)
+    position()
+    const observer = new ResizeObserver(position)
+    if (header.current) observer.observe(header.current)
     const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setMenuOpen(false) }
     document.addEventListener('keydown', close)
-    return () => document.removeEventListener('keydown', close)
+    return () => { document.removeEventListener('keydown', close); observer.disconnect() }
   }, [menuOpen])
   return (
-    <header className="site-header">
+    <header className="site-header" ref={header}>
       <div className="header-inner">
         <Link className="brand-logo" href="/" aria-label={`${profile.identity.name} — на главную`}>
           <Image src="/brand/westside-logo.png" alt={profile.identity.name} width={60} height={60} priority />
@@ -51,24 +60,9 @@ export function StorefrontHeader() {
       </div>
       <Suspense fallback={null}><CatalogSearch className="mobile-search" onSearch={() => setMenuOpen(false)} /></Suspense>
       {menuOpen ? (
-        <div className="mega-menu" id="catalog-menu">
-          <Link href="/catalog" onClick={() => setMenuOpen(false)}>Весь каталог</Link>
-          <div className="menu-contacts"><StorefrontContact /></div>
-          {navigation.loading ? <p role="status">Загрузка категорий и брендов…</p> : navigation.error ? <div role="alert"><p>{navigation.error}</p><button type="button" onClick={navigation.reload}>Повторить загрузку меню</button></div> : <>
-          <div className="mega-column">
-            <strong>Все товары</strong>
-            {nav.categories.length === 0
-              ? <p className="mega-empty">Категории появятся после импорта каталога.</p>
-              : nav.categories.map((category) => <Link key={category.slug} href={'/catalog?category=' + encodeURIComponent(category.slug)} onClick={() => setMenuOpen(false)}>{category.name}<span>›</span></Link>)}
-          </div>
-          <div className="mega-column">
-            <strong>Бренды</strong>
-            {nav.brands.length === 0
-              ? <p className="mega-empty">Бренды появятся после импорта каталога.</p>
-              : nav.brands.map((brand) => <Link key={brand.slug} href={'/catalog?brand=' + encodeURIComponent(brand.slug)} onClick={() => setMenuOpen(false)}>{brand.name}<span>›</span></Link>)}
-          </div>
-          </>}
-        </div>
+        <><button type="button" className="catalog-menu-shade" style={{top:menuTop}} aria-label="Закрыть меню каталога" onClick={()=>setMenuOpen(false)}/><div className="mega-menu hierarchy-menu" id="catalog-menu" style={{top:menuTop,height:'min(620px, calc(100dvh - '+(menuTop+12)+'px))'}}>
+          {navigation.loading ? <p role="status">Загрузка категорий…</p> : navigation.error ? <div role="alert"><p>{navigation.error}</p><button type="button" onClick={navigation.reload}>Повторить загрузку меню</button></div> : <CascadeCatalogMenu nodes={nav.categories} onNavigate={()=>setMenuOpen(false)}/>}
+        </div></>
       ) : null}
     </header>
   )

@@ -1,4 +1,5 @@
-import { mappedCategory, sourceGroupPath, resolveStoreCategory, rememberGroupPaths } from './group-mapping'
+import { categoryPathResolver } from './category-path'
+import { rememberGroupPaths } from './group-mapping'
 import { mappedBrand } from './brand-mapping'
 import type { Prisma, PrismaClient, ProductStatus } from '@prisma/client'
 import { allocateSourceSku, lockCatalogSkus, sourceIdentitySku } from './source-sku'
@@ -78,10 +79,9 @@ export async function applyProductSnapshotInTransaction(input: { storeId: string
 
   // Resolve/create the category from the provider group (idempotent via
   // ExternalReference); staff can rename it later without a re-import breaking.
-  const categoryOverride = source.provider === 'ONE_C' ? mappedCategory(raw, source.config) : undefined
-  const categoryRoot = source.provider === 'ONE_C' ? sourceGroupPath(raw, source.config).at(-1) : undefined
-  const categoryId = categoryOverride ? await resolveStoreCategory(tx, input.storeId, categoryOverride)
-    : await resolveCategoryId(tx, input.storeId, input.connectionId, categoryRoot?.id ?? normalized.categoryExternalId, categoryRoot?.name ?? normalized.categoryName)
+  const categoryId = source.provider === 'ONE_C'
+    ? await categoryPathResolver(tx, input.storeId, input.connectionId, source.config)(raw)
+    : await resolveCategoryId(tx, input.storeId, input.connectionId, normalized.categoryExternalId, normalized.categoryName)
   // Brand: only set when the provider resolved one (the nearest group staff
   // marked as a brand); otherwise leave the product without a brand.
   const mapped = source.provider === 'ONE_C' ? mappedBrand(raw, source.config) : undefined

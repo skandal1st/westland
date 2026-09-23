@@ -26,7 +26,7 @@ export async function GET(request: Request) {
 
   const store = await getActiveStore()
   const [banners, blocks] = await Promise.all([
-    getActiveBanners({ storeId: store.id, placement: placement as BannerPlacement }),
+    getActiveBanners({ storeId: store.id, placement: placement as BannerPlacement, categorySlug: url.searchParams.get('category'), brandSlug: url.searchParams.get('brand') }),
     getContentBlocks({ storeId: store.id, placement }),
   ])
   return NextResponse.json({ banners, blocks })

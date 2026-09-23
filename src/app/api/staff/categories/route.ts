@@ -1,3 +1,4 @@
+import { categoryForest, flattenCategories } from '@/lib/catalog/tree'
 import { z } from 'zod'
 import { randomUUID } from 'node:crypto'
 import { slugify } from '@/lib/catalog/import'
@@ -18,11 +19,13 @@ export async function GET() {
   const categories = await prisma.category.findMany({
     where: { storeId: store.id, mergedIntoId: null },
     orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-    select: { id: true, name: true, slug: true, hidden: true, sortOrder: true, _count: { select: { products: true } } },
+    select: { id: true, parentId: true, name: true, slug: true, hidden: true, sortOrder: true, _count: { select: { products: true } } },
   })
 
+  const tree = categoryForest(categories.map(c=>({...c,hidden:false,mergedIntoId:null})),new Map(categories.map(c=>[c.id,c._count.products])),true)
+  const totals = new Map(flattenCategories(tree).map(c=>[c.id,c.count]))
   return NextResponse.json({
-    categories: categories.map((c) => ({ id: c.id, name: c.name, slug: c.slug, hidden: c.hidden, sortOrder: c.sortOrder, products: c._count.products })),
+    categories: categories.map((c) => ({ id: c.id, parentId: c.parentId, name: c.name, slug: c.slug, hidden: c.hidden, sortOrder: c.sortOrder, products: totals.get(c.id) ?? c._count.products })),
   })
 }
 

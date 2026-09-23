@@ -17,5 +17,5 @@ export async function POST(request: Request) {
   const store = await getActiveStore(), source = await resolveActiveSource(store.id, 'ONE_C')
   if (!source) return NextResponse.json({ error: 'no_source' }, { status: 409 })
   try { return NextResponse.json(await setCategoryGroups(store.id, source.id, parsed.data.externalIds, parsed.data.categoryId, auth.user.id)) }
-  catch (e) { if (e instanceof Error && ['source_changed','invalid_category','group_not_found'].includes(e.message)) return NextResponse.json({ error: e.message }, { status: 409 }); throw e }
+  catch (e) { if (e instanceof Error && ['source_changed','invalid_category','group_not_found','category_cycle'].includes(e.message)) return NextResponse.json({ error: e.message }, { status: 409 }); throw e }
 }

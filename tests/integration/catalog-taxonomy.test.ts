@@ -1,3 +1,7 @@
+import { getActiveBanners, invalidateContentCache } from '@/lib/content/read'
+import { rebuildCategoryHierarchy } from '@/lib/integrations/onec/rebuild-categories'
+import { categoryTrail, flattenCategories } from '@/lib/catalog/tree'
+import { validateBanner } from '@/lib/content/banner-validation'
 import { beforeAll, afterAll, it, expect } from 'vitest'
 import { PrismaClient } from '@prisma/client'
 import fs from 'node:fs/promises'
@@ -38,8 +42,11 @@ beforeAll(async()=>{
 afterAll(async()=>{await db.providerSnapshot.deleteMany({where:{storeId}});await db.inbox.deleteMany({where:{storeId}});await db.store.delete({where:{id:storeId}});await db.$disconnect();if(oldDir===undefined)delete process.env.ONEC_EXCHANGE_DIR;else process.env.ONEC_EXCHANGE_DIR=oldDir})
 it('keeps three source identities while mapping all nested products into one site category',async()=>{
   const refs=await db.externalReference.findMany({where:{connectionId,entityType:'category'},select:{id:true,entityId:true,externalId:true},orderBy:{externalId:'asc'}})
-  expect((await setCategoryGroups(storeId,connectionId,['a','b','d'],targetId,actor.id)).productsUpdated).toBe(3)
-  expect(await db.product.count({where:{storeId,categoryId:targetId}})).toBe(3)
+  expect((await setCategoryGroups(storeId,connectionId,['a','b','d'],targetId,actor.id)).productsUpdated).toBe(0)
+  expect(await db.product.count({where:{storeId,categoryId:targetId}})).toBe(0)
+  expect((await listCatalog({storeId,categorySlug:'tobacco'})).total).toBe(3)
+  const tree=(await listCatalogNav(storeId)).categories
+  expect(categoryTrail(tree,flattenCategories(tree).find(n=>n.name==='100 г')!.slug).map(n=>n.name)).toEqual(['Табак','Bonche','Линейка','100 г'])
   expect(await db.externalReference.findMany({where:{connectionId,entityType:'category'},select:{id:true,entityId:true,externalId:true},orderBy:{externalId:'asc'}})).toEqual(refs)
   expect((await readCategoryGroups(connectionId)).find(g=>g.externalId==='leaf')).toMatchObject({categoryId:null,effectiveCategoryId:targetId})
 })
@@ -91,4 +98,29 @@ it('rejects foreign targets, preserves source config and hides hidden-category p
     await db.category.update({where:{id:targetId},data:{hidden:false}})
     expect((await catalogFacets({storeId})).brands).toHaveLength(3)
   } finally {await db.store.delete({where:{id:foreign.id}})}
+})
+
+it('backfills a previously flat snapshot without changing product identities; repeating is a no-op',async()=>{
+  const before=await db.product.findMany({where:{storeId},select:{id:true,categoryId:true},orderBy:{id:'asc'}})
+  await db.product.updateMany({where:{storeId},data:{categoryId:targetId}})
+  const source=await db.integrationConnection.findUniqueOrThrow({where:{id:connectionId}})
+  expect(await db.$transaction(tx=>rebuildCategoryHierarchy(tx,storeId,connectionId,source.config))).toBe(before.length)
+  expect(await db.product.findMany({where:{storeId},select:{id:true,categoryId:true},orderBy:{id:'asc'}})).toEqual(before)
+  expect(await db.$transaction(tx=>rebuildCategoryHierarchy(tx,storeId,connectionId,source.config))).toBe(0)
+})
+it('inherits folder banners down arbitrary depth, never into siblings or parents',async()=>{
+  const tree=(await listCatalogNav(storeId)).categories,nodes=flattenCategories(tree),bonche=nodes.find(n=>n.name==='Bonche')!,leaf=nodes.find(n=>n.name==='100 г')!,burn=nodes.find(n=>n.name==='Burn')!
+  await db.siteBanner.create({data:{storeId,name:'Bonche banner',placement:'CATALOG',categoryId:bonche.id,isActive:true}})
+  invalidateContentCache(storeId)
+  for(const categorySlug of [bonche.slug,leaf.slug]) expect((await getActiveBanners({storeId,placement:'CATALOG',categorySlug})).map(b=>b.name)).toEqual(['Bonche banner'])
+  for(const categorySlug of [undefined,'tobacco',burn.slug]) expect(await getActiveBanners({storeId,placement:'CATALOG',categorySlug})).toEqual([])
+  await db.category.update({where:{id:bonche.id},data:{hidden:true}})
+  expect(await getActiveBanners({storeId,placement:'CATALOG',categorySlug:leaf.slug})).toEqual([])
+  await db.category.update({where:{id:bonche.id},data:{hidden:false}})
+  expect(await validateBanner(storeId,{categoryId:'foreign-category'})).toBe('invalid_relation')
+})
+
+it('rejects replacing an ancestor with one of its own descendants',async()=>{
+  const ref=await db.externalReference.findUniqueOrThrow({where:{connectionId_entityType_externalId:{connectionId,entityType:'category',externalId:'leaf'}}})
+  await expect(setCategoryGroups(storeId,connectionId,['a'],ref.entityId,actor.id)).rejects.toThrow('category_cycle')
 })

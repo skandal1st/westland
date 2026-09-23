@@ -1,3 +1,4 @@
+import { categoryScope } from '@/lib/catalog/tree'
 import type { BannerPlacement, PrismaClient } from '@prisma/client'
 import { prisma as defaultPrisma } from '@/lib/db'
 import { safeBannerHref } from '@/lib/content/banner-link'
@@ -14,6 +15,7 @@ export type ActiveBanner = {
   id: string
   name: string
   placement: BannerPlacement
+  category: { id: string; slug: string; name: string } | null
   desktopImageUrl: string | null
   mobileImageUrl: string | null
   linkUrl: string | null
@@ -55,7 +57,7 @@ function withinWindow(row: { startsAt: Date | null; endsAt: Date | null }, date:
 }
 
 export async function getActiveBanners(
-  input: { storeId: string; placement: BannerPlacement; date?: Date },
+  input: { storeId: string; placement: BannerPlacement; categorySlug?: string | null; brandSlug?: string | null; date?: Date },
   client: Client = defaultPrisma,
 ): Promise<ActiveBanner[]> {
   const date = input.date ?? new Date()
@@ -68,15 +70,22 @@ export async function getActiveBanners(
       select: {
         id: true, name: true, placement: true, desktopImageUrl: true, mobileImageUrl: true, linkUrl: true,
         startsAt: true, endsAt: true,
-        brand: { select: { slug: true, name: true } },
+        category: { select: { id: true, slug: true, name: true } },
+        brand: { select: { id: true, slug: true, name: true } },
       },
     }),
   )
+  const scope = input.placement === 'CATALOG' && input.categorySlug ? await categoryScope(input.storeId, input.categorySlug) : null
+  const ancestors = new Set(scope?.trail.map(n=>n.id) ?? [])
+  const legacyBrandIds = scope ? await client.product.findMany({where:{storeId:input.storeId,categoryId:{in:scope.ids},status:'ACTIVE',content:{isNot:null},brandId:{not:null}},distinct:['brandId'],select:{brandId:true}}) : []
+  const matchingLegacyBrands = new Set(legacyBrandIds.map(p=>p.brandId))
   return rows
     .filter((row) => withinWindow(row, date))
+    .filter(row => input.placement !== 'CATALOG' || (row.category ? ancestors.has(row.category.id) : row.brand ? (scope ? matchingLegacyBrands.has(row.brand.id) : !input.brandSlug || row.brand.slug === input.brandSlug) : true))
     .map((row) => ({
       id: row.id, name: row.name, placement: row.placement,
       desktopImageUrl: row.desktopImageUrl, mobileImageUrl: row.mobileImageUrl, linkUrl: safeBannerHref(row.linkUrl),
+      category: row.category ?? null,
       brand: row.brand ? { slug: row.brand.slug, name: row.brand.name } : null,
     }))
 }

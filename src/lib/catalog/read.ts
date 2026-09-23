@@ -1,3 +1,4 @@
+import { categoryScope, flattenCategories, type CategoryNode } from './tree'
 import { prisma } from '@/lib/db'
 import type { Prisma } from '@prisma/client'
 import { priceVariantsInContext, type ResolvedPrice } from '@/lib/pricing'
@@ -58,7 +59,7 @@ function toItem(product: ProductRow): CatalogItem | null {
  * channel projection). Price/availability come from projections/entries — never
  * a synchronous provider call.
  */
-export type CatalogFilters = { storeId: string; categorySlug?: string | null; brandSlug?: string | null; query?: string | null }
+export type CatalogFilters = { storeId: string; categorySlug?: string | null; brandSlug?: string | null; query?: string | null; categoryIds?: string[] }
 export function catalogWhere(input: CatalogFilters): Prisma.ProductWhereInput {
   // Search text is literal, including SQL LIKE metacharacters in supplier SKUs.
   const query = input.query?.trim().replace(/[\\%_]/g, '\\$&')
@@ -69,7 +70,7 @@ export function catalogWhere(input: CatalogFilters): Prisma.ProductWhereInput {
     AND: [
       // Products in a hidden category are excluded from the storefront entirely.
       { OR: [{ categoryId: null }, { category: { is: { hidden: false } } }] },
-      ...(input.categorySlug ? [{ category: { is: { slug: input.categorySlug } } }] : []),
+      ...(input.categoryIds ? [input.categorySlug ? { categoryId: { in: input.categoryIds } } : { OR: [{ categoryId: null }, { categoryId: { in: input.categoryIds } }] }] : input.categorySlug ? [{ category: { is: { slug: input.categorySlug } } }] : []),
       ...(input.brandSlug ? [{ brand: { is: { slug: input.brandSlug } } }] : []),
       ...(query ? [{ OR: [
         { canonicalName: { contains: query, mode: 'insensitive' as const } },
@@ -96,7 +97,8 @@ export async function listCatalog(input: {
 }): Promise<{ items: CatalogItem[]; total: number }> {
   const take = Math.min(Math.max(input.take ?? 50, 1), 100)
   const skip = Math.max(input.skip ?? 0, 0)
-  const where = catalogWhere(input)
+  const scope = await categoryScope(input.storeId, input.categorySlug)
+  const where = catalogWhere({ ...input, categoryIds: scope.ids })
   const [rows, total] = await Promise.all([
     prisma.product.findMany({
       where,
@@ -129,31 +131,10 @@ export async function listCatalog(input: {
   return { items, total }
 }
 
-export type CatalogNav = {
-  categories: { name: string; slug: string }[]
-  brands: { name: string; slug: string }[]
-}
-
-/**
- * Storefront navigation: categories and brands that actually have at least one
- * storefront-ready product (ACTIVE + commerce overlay). Empty until a catalog is
- * imported, so the mega-menu reflects the real assortment rather than demo data.
- */
+export type CatalogNav = { categories: CategoryNode[]; brands: { name: string; slug: string }[] }
 export async function listCatalogNav(storeId: string): Promise<CatalogNav> {
-  const hasStorefrontProduct = { some: { status: 'ACTIVE' as const, content: { isNot: null } } }
-  const [categories, brands] = await Promise.all([
-    prisma.category.findMany({
-      where: { storeId, hidden: false, products: hasStorefrontProduct },
-      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-      select: { name: true, slug: true },
-    }),
-    prisma.brand.findMany({
-      where: { storeId, products: { some: { status: 'ACTIVE', content: { isNot: null }, OR: [{ categoryId: null }, { category: { hidden: false } }] } } },
-      orderBy: { name: 'asc' },
-      select: { name: true, slug: true },
-    }),
-  ])
-  return { categories, brands }
+  const facets = await catalogFacets({ storeId })
+  return { categories: facets.tree, brands: facets.brands }
 }
 
 export async function getProductBySlug(storeId: string, slug: string): Promise<CatalogItem | null> {
@@ -170,21 +151,24 @@ export async function getProductBySlug(storeId: string, slug: string): Promise<C
     },
   })
   if (!content || content.product.status !== 'ACTIVE') return null
+  if (content.product.categoryId && !(await categoryScope(storeId)).ids.includes(content.product.categoryId)) return null
   return toItem({ ...content.product, content })
 }
 
 export type CatalogFacet = { name: string; slug: string; count: number }
 export async function catalogFacets(input: CatalogFilters) {
-  const [categoryCounts,brandCounts] = await Promise.all([
-    prisma.product.groupBy({ by:['categoryId'], where:catalogWhere({...input,categorySlug:undefined}), _count:{_all:true} }),
-    prisma.product.groupBy({ by:['brandId'], where:catalogWhere({...input,brandSlug:undefined}), _count:{_all:true} }),
+  const scope = await categoryScope(input.storeId, input.categorySlug)
+  const allIds = flattenCategories(scope.tree).map(n=>n.id)
+  const [categoryCounts, brandCounts] = await Promise.all([
+    prisma.product.groupBy({ by: ['categoryId'], where: catalogWhere({ ...input, categorySlug: undefined, categoryIds: allIds }), _count: { _all: true } }),
+    prisma.product.groupBy({ by: ['brandId'], where: catalogWhere({ ...input, categoryIds: scope.ids }), _count: { _all: true } }),
   ])
-  const [categories,brands,category,brand] = await Promise.all([
-    prisma.category.findMany({where:{storeId:input.storeId,id:{in:categoryCounts.flatMap(c=>c.categoryId?[c.categoryId]:[])}},orderBy:[{sortOrder:'asc'},{name:'asc'}],select:{id:true,name:true,slug:true}}),
-    prisma.brand.findMany({where:{storeId:input.storeId,id:{in:brandCounts.flatMap(b=>b.brandId?[b.brandId]:[])}},orderBy:{name:'asc'},select:{id:true,name:true,slug:true}}),
-    input.categorySlug?prisma.category.findFirst({where:{storeId:input.storeId,slug:input.categorySlug,hidden:false,mergedIntoId:null},select:{name:true,slug:true}}):null,
-    input.brandSlug?prisma.brand.findFirst({where:{storeId:input.storeId,slug:input.brandSlug},select:{name:true,slug:true}}):null,
-  ])
-  const cc=new Map(categoryCounts.map(c=>[c.categoryId,c._count._all])),bc=new Map(brandCounts.map(b=>[b.brandId,b._count._all]))
-  return {categories:categories.map(c=>({name:c.name,slug:c.slug,count:cc.get(c.id)??0})),brands:brands.map(b=>({name:b.name,slug:b.slug,count:bc.get(b.id)??0})),category,brand}
+  const counts = new Map(categoryCounts.flatMap(c => c.categoryId ? [[c.categoryId, c._count._all] as const] : []))
+  const rollup = (nodes: CategoryNode[]): CategoryNode[] => nodes.map(n => { const children=rollup(n.children);return {...n,children,count:(counts.get(n.id)??0)+children.reduce((v,c)=>v+c.count,0)} }).filter(n=>n.count>0)
+  const tree = rollup(scope.tree)
+  const brands = await prisma.brand.findMany({ where: { storeId: input.storeId, id: { in: brandCounts.flatMap(b=>b.brandId?[b.brandId]:[]) } }, orderBy: { name: 'asc' }, select: { id: true, name: true, slug: true } })
+  const bc = new Map(brandCounts.map(b=>[b.brandId,b._count._all]))
+  const selected = scope.trail.at(-1)
+  const brand = input.brandSlug ? await prisma.brand.findFirst({where:{storeId:input.storeId,slug:input.brandSlug},select:{name:true,slug:true}}) : null
+  return { tree, trail: scope.trail.map(n=>({id:n.id,name:n.name,slug:n.slug})), categories: tree.map(n=>({name:n.name,slug:n.slug,count:n.count})), brands: brands.map(b=>({name:b.name,slug:b.slug,count:bc.get(b.id)??0})), category: selected ? { name:selected.name,slug:selected.slug } : null, brand }
 }

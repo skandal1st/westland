@@ -1,4 +1,5 @@
-import { mappedCategory, sourceGroupPath, resolveStoreCategory, rememberGroupPaths } from './group-mapping'
+import { categoryPathResolver } from './category-path'
+import { rememberGroupPaths } from './group-mapping'
 import { mappedBrand } from './brand-mapping'
 import { randomUUID } from 'node:crypto'
 import { allocateSourceSku, lockCatalogSkus } from './source-sku'
@@ -46,14 +47,13 @@ export async function applyProductBatch(input: { storeId: string; connectionId: 
   const existingContent = await tx.commerceProductContent.findMany({ where: { storeId }, select: { productId: true, slug: true } })
   const contentIds = new Set(existingContent.map(c => c.productId)), slugs = new Set(existingContent.map(c => c.slug))
   const categories = new Map<string, string | undefined>(), brands = new Map<string, string | undefined>()
+  const resolvePath = categoryPathResolver(tx, storeId, connectionId, source.config)
   const writes = []
   for (const row of prepared) {
     const n = row.normalized
-    const categoryOverride = source.provider === 'ONE_C' ? mappedCategory(row.raw, source.config) : undefined
-    const categoryRoot = source.provider === 'ONE_C' ? sourceGroupPath(row.raw, source.config).at(-1) : undefined
-    const categoryExternalId = categoryRoot?.id ?? n.categoryExternalId
-    const categoryKey = categoryOverride ? 'site:' + categoryOverride : categoryExternalId ?? ''
-    if (!categories.has(categoryKey)) categories.set(categoryKey, categoryOverride ? await resolveStoreCategory(tx, storeId, categoryOverride) : await resolveCategoryId(tx, storeId, connectionId, categoryExternalId, categoryRoot?.name ?? n.categoryName))
+    const categoryKey = n.categoryExternalId ?? ''
+    if (source.provider !== 'ONE_C' && !categories.has(categoryKey)) categories.set(categoryKey, await resolveCategoryId(tx, storeId, connectionId, n.categoryExternalId, n.categoryName))
+    const leafCategoryId = source.provider === 'ONE_C' ? await resolvePath(row.raw) : categories.get(categoryKey)
     const mapped = source.provider === 'ONE_C' ? mappedBrand(row.raw, source.config) : undefined
     const brandExternalId = mapped === null ? undefined : mapped?.id ?? n.brandExternalId
     const brandName = mapped?.name ?? n.brandName
@@ -67,7 +67,7 @@ export async function applyProductBatch(input: { storeId: string; connectionId: 
       while (slugs.has(slug)) slug = `${base}-${randomUUID()}`
       slugs.add(slug)
     }
-    writes.push({ ...row, slug, categoryId: categories.get(categoryKey) ?? row.product?.categoryId ?? null,
+    writes.push({ ...row, slug, categoryId: leafCategoryId ?? row.product?.categoryId ?? null,
       brandId: mapped === null ? null : brands.get(brandExternalId ?? '') ?? row.product?.brandId ?? null, status: n.archived ? 'ARCHIVED' as const : 'ACTIVE' as const })
   }
   for (let offset = 0; offset < writes.length; offset += BATCH) {

@@ -17,7 +17,8 @@ export function persistImage(file, image) {
 // Reviewed additive expansion: GiftPromotion is new; existing Cart/OrderItem receive only nullable columns.
 // The mandatory copy rehearsal still runs candidate AND previous-image Prisma reads before production migration.
 // Exact digest prevents this exception from authorizing edits, data rewrites or unrelated constraints.
-const reviewedAdditiveMigrations = new Set(['78176c9ff6d3ae68177818cd14b5b86ab5e8150aa1333de347378a063cae2d44'])
+// Banner targeting: nullable FK, existing rows remain null, old image ignores it.
+const reviewedAdditiveMigrations = new Set(['524e27987da4249e8e972a65fa7c465936e75acf9348f108bfd4c4963711d542', '78176c9ff6d3ae68177818cd14b5b86ab5e8150aa1333de347378a063cae2d44'])
 export function assertAdditiveMigration(sql) {
   if (reviewedAdditiveMigrations.has(crypto.createHash('sha256').update(sql.replace(/\r\n/g, '\n')).digest('hex'))) return
   const statements = sql.replace(/--[^\r\n]*/g, '').split(';').map(x => x.trim()).filter(Boolean)

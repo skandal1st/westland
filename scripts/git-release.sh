@@ -8,6 +8,11 @@ cd "$source_root"
 git diff --quiet && git diff --cached --quiet || { echo 'Checkout has uncommitted changes'; exit 2; }
 [ -z "$(git ls-files --others --exclude-standard)" ] || { echo 'Checkout has untracked files'; exit 2; }
 [ -f "$installation/deployment/secrets/.env" ] && [ -f "$installation/scripts/deploy.mjs" ] || { echo 'Existing installation required'; exit 2; }
+# Recovery snapshots can exceed a small system /tmp tmpfs; use the installation disk.
+TMPDIR="$installation/deployment/tmp"
+mkdir -p "$TMPDIR"
+chmod 700 "$TMPDIR"
+export TMPDIR
 revision=$(git rev-parse HEAD)
 release="$installation/deployment/git-releases/$revision"
 mkdir -p "$release"

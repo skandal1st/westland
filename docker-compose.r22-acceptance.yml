@@ -1,0 +1,61 @@
+name: axima-r22-acceptance
+services:
+  postgres-r22:
+    image: postgres:16-alpine
+    env_file: ./deployment/r22-acceptance/postgres.env
+    volumes:
+      - r22_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U axima_r22 -d axima_r22_acceptance']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  app-r22:
+    image: axima-commerce-r22:partner-apply-v1
+    env_file: ./deployment/r22-acceptance/runtime.env
+    environment:
+      NODE_ENV: production
+    ports:
+      - '127.0.0.1:3312:3000'
+    volumes:
+      - ./deployment/r22-acceptance:/app/r22-config:ro
+      - r22_exchange:/app/exchange
+      - r22_media:/app/.media
+    depends_on:
+      postgres-r22:
+        condition: service_healthy
+    command: sh -c "node_modules/.bin/prisma migrate deploy && node server.js"
+    healthcheck:
+      test: ['CMD', 'node', '-e', 'fetch("http://127.0.0.1:3000/api/health").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))']
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  ed-r22:
+    image: axima-commerce-r22:partner-apply-v1
+    env_file: ./deployment/r22-acceptance/runtime.env
+    environment:
+      NODE_ENV: production
+      ED_LISTEN_HOST: 0.0.0.0
+    ports:
+      - '127.0.0.1:3318:3318'
+    volumes:
+      - ./deployment/enterprisedata/http-probe:/app/ed
+    command: ['node', 'dist/enterprisedata-http-probe.cjs', '/app/ed/config.json']
+    restart: unless-stopped
+    depends_on:
+      app-r22:
+        condition: service_healthy
+  seed-r22:
+    image: axima-commerce-r22:partner-apply-v1
+    env_file: ./deployment/r22-acceptance/runtime.env
+    volumes:
+      - ./scripts/r22-acceptance-seed.cjs:/app/r22-seed.cjs:ro
+    command: ['node', '/app/r22-seed.cjs']
+    profiles: ['seed']
+    depends_on:
+      app-r22:
+        condition: service_healthy
+volumes:
+  r22_postgres_data:
+  r22_exchange:
+  r22_media:

@@ -1,3 +1,5 @@
+import { assertCapability, CapabilityError, type Capability } from '@/lib/capabilities'
+import { LicenseError } from '@/lib/license'
 import { getServerSession } from 'next-auth'
 import { NextResponse } from 'next/server'
 import { redirect } from 'next/navigation'
@@ -18,11 +20,20 @@ export async function getCurrentUser() {
  */
 export async function requireApiUser(
   roles?: UserRole[],
+  capability?: Capability,
 ): Promise<{ user: SessionUser } | { response: NextResponse }> {
   const user = await getCurrentUser()
   if (!user) return { response: NextResponse.json({ error: 'unauthorized' }, { status: 401 }) }
   if (roles && !roles.includes(user.role)) {
     return { response: NextResponse.json({ error: 'forbidden' }, { status: 403 }) }
+  }
+  if (capability) {
+    try { assertCapability(capability) } catch (error) {
+      if (error instanceof LicenseError || error instanceof CapabilityError) {
+        return { response: NextResponse.json({ error: error.message }, { status: 403 }) }
+      }
+      throw error
+    }
   }
   return { user }
 }

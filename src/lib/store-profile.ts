@@ -21,6 +21,7 @@ export const StoreProfileSchema = z.object({
     legalName: z.string().optional(),
   }),
   modules: z.object({
+    core: z.boolean().optional(),
     b2b: z.boolean(),
     content: z.boolean(),
     invoices: z.boolean(),
@@ -77,6 +78,7 @@ export function deploymentProfileToRuntime(raw: unknown): StoreProfile {
       legalName: dp.store?.legalName,
     },
     modules: {
+      core: modules.includes('commerce-core'),
       b2b: modules.includes('commerce-b2b'),
       content: modules.includes('content'),
       invoices: modules.includes('invoices'),

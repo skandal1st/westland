@@ -103,7 +103,7 @@ describe('storefront banner read-model (integration)', () => {
 
 describe('integration job retry from backoffice (integration)', () => {
   it('makes a failed job visible and a manual retry drives it to SUCCESS', async () => {
-    const conn = await prisma.integrationConnection.create({ data: { storeId, provider: 'CUSTOM', name: `retry-${Date.now()}` } })
+    const conn = await prisma.integrationConnection.create({ data: { storeId, provider: 'CUSTOM', enabled: true, sourceState: 'ACTIVE', environment: 'TEST', name: `retry-${Date.now()}` } })
     const failing = createMockProvider({ products: [{ externalId: 'RJ1', sku: 'RJ1', name: 'x', packaging: '1' }], pageSize: 1, failOnPage: 1 })
     const job = await enqueueJob({ storeId, connectionId: conn.id, type: JOB_CATALOG_IMPORT, maxAttempts: 1 }, prisma)
 
@@ -122,7 +122,8 @@ describe('integration job retry from backoffice (integration)', () => {
   })
 
   it('retrying an already-succeeded job is idempotent (no re-run)', async () => {
-    const conn = await prisma.integrationConnection.create({ data: { storeId, provider: 'CUSTOM', name: `idem-${Date.now()}` } })
+    await prisma.integrationConnection.updateMany({ where: { storeId, sourceState: 'ACTIVE' }, data: { sourceState: 'RETIRED', enabled: false } })
+    const conn = await prisma.integrationConnection.create({ data: { storeId, provider: 'CUSTOM', enabled: true, sourceState: 'ACTIVE', environment: 'TEST', name: `idem-${Date.now()}` } })
     const provider = createMockProvider({ products: [{ externalId: 'ID1', sku: 'ID1', name: 'x', packaging: '1' }], pageSize: 1 })
     const job = await enqueueJob({ storeId, connectionId: conn.id, type: JOB_CATALOG_IMPORT }, prisma)
     await runJob(job, { provider }, prisma)

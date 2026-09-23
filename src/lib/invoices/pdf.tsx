@@ -1,3 +1,4 @@
+import { formatMoney as fmtMoney } from '@/lib/money-format'
 import { Document, Page, Text, View, StyleSheet, renderToBuffer } from '@react-pdf/renderer'
 import type { InvoiceWithLines } from '@/lib/invoices/invoices'
 import { buyerOf, sellerOf } from '@/lib/invoices/invoices'
@@ -21,36 +22,36 @@ const styles = StyleSheet.create({
   cellNum: { width: 24, padding: 5, textAlign: 'center', borderRightWidth: 1, borderRightColor: '#eee' },
   cellName: { flex: 3, padding: 5, borderRightWidth: 1, borderRightColor: '#eee' },
   cellQty: { width: 44, padding: 5, textAlign: 'center', borderRightWidth: 1, borderRightColor: '#eee' },
-  cellPrice: { width: 60, padding: 5, textAlign: 'right', borderRightWidth: 1, borderRightColor: '#eee' },
-  cellSum: { width: 68, padding: 5, textAlign: 'right' },
+  cellPrice: { width: 94, fontSize: 7, padding: 5, textAlign: 'right', borderRightWidth: 1, borderRightColor: '#eee' },
+  cellSum: { width: 102, fontSize: 7, padding: 5, textAlign: 'right' },
   headerText: { fontSize: 7, fontWeight: 'bold', color: '#555' },
   totals: { alignItems: 'flex-end', marginBottom: 20 },
   totalLine: { flexDirection: 'row', gap: 12, marginBottom: 3 },
   totalLabel: { fontSize: 9, color: '#555' },
-  totalValue: { fontSize: 9, fontWeight: 'bold', width: 120, textAlign: 'right' },
+  totalValue: { fontSize: 9, fontWeight: 'bold', width: 180, textAlign: 'right' },
   totalMain: { fontSize: 11, fontWeight: 'bold' },
   signature: { marginTop: 24 },
   sigLine: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   footer: { marginTop: 16, fontSize: 8, color: '#aaa', textAlign: 'center' },
 })
 
-function fmtMoney(n: number): string {
-  return n.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
+
 
 function InvoiceDoc({ invoice }: { invoice: InvoiceWithLines }) {
   const seller = sellerOf(invoice)
   const buyer = buyerOf(invoice)
   const dateStr = invoice.issuedAt.toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' })
-  const total = Number(invoice.total)
+  const total = invoice.total.toFixed(2)
   const vatRate = invoice.vatRate == null ? null : Number(invoice.vatRate)
-  const vatAmount = Number(invoice.vatAmount)
-  const bank = seller?.bank
+  const vatAmount = invoice.vatAmount.toFixed(2)
+  const bank = invoice.paymentMethod === 'CASH' ? undefined : seller?.bank
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         <Text style={styles.title}>Счёт на оплату № {invoice.number} от {dateStr}</Text>
+
+        {invoice.paymentMethod ? <Text style={{ marginBottom: 12 }}>Способ оплаты: {invoice.paymentMethod === 'CASH' ? 'Наличный расчёт' : 'Безналичный расчёт'}</Text> : null}
 
         <View style={styles.parties}>
           <View style={styles.partyCol}>
@@ -93,9 +94,9 @@ function InvoiceDoc({ invoice }: { invoice: InvoiceWithLines }) {
             <View key={line.id} style={styles.tableRow}>
               <View style={styles.cellNum}><Text>{line.position}</Text></View>
               <View style={styles.cellName}><Text>{line.name}{line.packaging ? `, ${line.packaging}` : ''}</Text></View>
-              <View style={styles.cellQty}><Text>{Number(line.quantity)}</Text></View>
-              <View style={styles.cellPrice}><Text>{fmtMoney(Number(line.unitPrice))}</Text></View>
-              <View style={styles.cellSum}><Text>{fmtMoney(Number(line.lineTotal))}</Text></View>
+              <View style={styles.cellQty}><Text>{line.quantity.toString()}</Text></View>
+              <View style={styles.cellPrice}><Text>{fmtMoney(line.unitPrice.toFixed(2))}</Text></View>
+              <View style={styles.cellSum}><Text>{fmtMoney(line.lineTotal.toFixed(2))}</Text></View>
             </View>
           ))}
         </View>
@@ -111,11 +112,11 @@ function InvoiceDoc({ invoice }: { invoice: InvoiceWithLines }) {
           </View>
           <View style={styles.totalLine}>
             <Text style={styles.totalMain}>Всего к оплате:</Text>
-            <Text style={{ fontSize: 11, fontWeight: 'bold', width: 120, textAlign: 'right' }}>{fmtMoney(total)} {invoice.currency}</Text>
+            <Text style={{ fontSize: 11, fontWeight: 'bold', width: 180, textAlign: 'right' }}>{fmtMoney(total)} {invoice.currency}</Text>
           </View>
         </View>
 
-        {seller?.paymentPurpose ? (
+        {invoice.paymentMethod !== 'CASH' && seller?.paymentPurpose ? (
           <Text style={{ fontSize: 9, color: '#555', marginBottom: 12 }}>Назначение платежа: {seller.paymentPurpose}</Text>
         ) : null}
 
@@ -138,8 +139,16 @@ function InvoiceDoc({ invoice }: { invoice: InvoiceWithLines }) {
   )
 }
 
-/** Deterministically render an issued invoice's immutable snapshot to a PDF. */
-export async function renderInvoicePdf(invoice: InvoiceWithLines): Promise<Buffer> {
-  registerPdfFonts()
-  return renderToBuffer(<InvoiceDoc invoice={invoice} />)
+// The layout engine has process-wide WASM state. Serialize renders, including
+// the first initialization; a rejected render must not poison the next request.
+let renderQueue: Promise<void> = Promise.resolve()
+
+/** Render the issued invoice snapshot without reading mutable directories. */
+export function renderInvoicePdf(invoice: InvoiceWithLines): Promise<Buffer> {
+  const result = renderQueue.then(async () => {
+    registerPdfFonts()
+    return renderToBuffer(<InvoiceDoc invoice={invoice} />)
+  })
+  renderQueue = result.then(() => undefined, () => undefined)
+  return result
 }

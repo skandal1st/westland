@@ -1,5 +1,6 @@
 import type { BannerPlacement, PrismaClient } from '@prisma/client'
 import { prisma as defaultPrisma } from '@/lib/db'
+import { safeBannerHref } from '@/lib/content/banner-link'
 
 type Client = PrismaClient
 
@@ -75,7 +76,7 @@ export async function getActiveBanners(
     .filter((row) => withinWindow(row, date))
     .map((row) => ({
       id: row.id, name: row.name, placement: row.placement,
-      desktopImageUrl: row.desktopImageUrl, mobileImageUrl: row.mobileImageUrl, linkUrl: row.linkUrl,
+      desktopImageUrl: row.desktopImageUrl, mobileImageUrl: row.mobileImageUrl, linkUrl: safeBannerHref(row.linkUrl),
       brand: row.brand ? { slug: row.brand.slug, name: row.brand.name } : null,
     }))
 }

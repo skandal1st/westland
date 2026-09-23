@@ -1,20 +1,11 @@
 import type { SellerRequisites } from '@/lib/invoices/requisites'
+import { grossTax, type DecimalInput } from '@/lib/money'
 
-export type VatBreakdown = { subtotal: number; vatRate: number | null; vatAmount: number; total: number }
+/** Exact document-level VAT extracted from gross; subtotal + VAT always equals gross. */
+export const extractVatExact = (total: DecimalInput, requisites: Pick<SellerRequisites, 'vatEnabled' | 'vatRate'>) => grossTax(total, requisites)
 
-function round2(n: number): number {
-  return Math.round(n * 100) / 100
-}
-
-/**
- * VAT is extracted from the gross total — invoice prices already include tax
- * (Russian УПД convention). When VAT is disabled or has no positive rate the
- * document is "Без НДС": vatAmount is 0 and the whole total is the subtotal.
- * Pure and deterministic so an invoice's numbers depend only on its snapshot.
- */
-export function extractVat(total: number, requisites: Pick<SellerRequisites, 'vatEnabled' | 'vatRate'>): VatBreakdown {
-  const rate = requisites.vatEnabled && requisites.vatRate && requisites.vatRate > 0 ? requisites.vatRate : null
-  if (rate === null) return { subtotal: round2(total), vatRate: null, vatAmount: 0, total: round2(total) }
-  const vatAmount = round2((total * rate) / (100 + rate))
-  return { subtotal: round2(total - vatAmount), vatRate: rate, vatAmount, total: round2(total) }
+/** Numeric compatibility view for existing callers; authoritative persistence uses extractVatExact. */
+export function extractVat(total: DecimalInput, requisites: Pick<SellerRequisites, 'vatEnabled' | 'vatRate'>) {
+  const value = extractVatExact(total, requisites)
+  return { subtotal: Number(value.subtotal), vatRate: value.vatRate, vatAmount: Number(value.vatAmount), total: Number(value.total) }
 }

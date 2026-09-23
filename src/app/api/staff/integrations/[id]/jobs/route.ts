@@ -1,3 +1,4 @@
+import { storedAttemptResult } from '@/lib/integrations/import-result'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { requireApiUser } from '@/lib/authz'
@@ -21,15 +22,17 @@ export async function GET(_request: Request, { params }: { params: { id: string 
     take: 50,
     select: {
       id: true, type: true, status: true, attempts: true, maxAttempts: true,
-      availableAt: true, startedAt: true, finishedAt: true, lastError: true, createdAt: true,
+      leaseExpiresAt: true, availableAt: true, startedAt: true, finishedAt: true, lastError: true, createdAt: true,
+      attemptsLog: { orderBy: { startedAt: 'desc' }, take: 1, select: { status: true, stats: true, error: true, finishedAt: true } },
       _count: { select: { attemptsLog: true, errors: true } },
     },
   })
   return NextResponse.json({
     jobs: jobs.map((j) => ({
       id: j.id, type: j.type, status: j.status, attempts: j.attempts, maxAttempts: j.maxAttempts,
-      availableAt: j.availableAt, startedAt: j.startedAt, finishedAt: j.finishedAt, lastError: j.lastError, createdAt: j.createdAt,
+      leaseExpiresAt: j.leaseExpiresAt, availableAt: j.availableAt, startedAt: j.startedAt, finishedAt: j.finishedAt, lastError: j.lastError, createdAt: j.createdAt,
       attemptCount: j._count.attemptsLog, errorCount: j._count.errors,
+      latestAttempt: j.attemptsLog[0] ? { ...j.attemptsLog[0], stats: storedAttemptResult(j.attemptsLog[0].stats, j) } : null,
       retryable: j.status !== 'SUCCEEDED' && j.status !== 'RUNNING',
     })),
   })

@@ -1,3 +1,7 @@
+import { assertCapability } from '@/lib/capabilities'
+import { ImportExecutionError } from './import-result'
+import { importSourceValues } from './source-import'
+import type { OperationalProvider } from './provider'
 import type { PrismaClient } from '@prisma/client'
 import { prisma as defaultPrisma } from '@/lib/db'
 
@@ -29,37 +33,44 @@ async function resolveBookId(client: PrismaClient, storeId: string, bookCode?: s
  * the product — they belong to a PriceBook and are resolved by context.
  */
 export async function importPrices(
-  input: { storeId: string; connectionId: string; provider: { pullPrices?: (cursor?: string) => Promise<{ items: unknown[]; nextCursor?: string }> } },
+  input: { storeId: string; connectionId: string; jobId?: string; provider: { pullPrices?: (cursor?: string) => Promise<{ items: unknown[]; nextCursor?: string }> } },
   client: PrismaClient = defaultPrisma,
 ): Promise<PriceImportStats> {
+  assertCapability('commerce-core')
+
+  if ((input.provider as OperationalProvider).provider === 'ONE_C') return importSourceValues({ ...input, provider: input.provider as OperationalProvider }, 'prices', client)
   const stats: PriceImportStats = { imported: 0, failed: 0 }
   if (!input.provider.pullPrices) return stats
 
   let cursor: string | undefined
-  for (;;) {
-    const page = await input.provider.pullPrices(cursor)
-    for (const item of page.items) {
-      try {
-        const raw = (item ?? {}) as Record<string, any>
-        const externalId = String(raw.externalId ?? raw.id ?? '')
-        const amount = Number(raw.amount)
-        if (!externalId || !Number.isFinite(amount)) throw new Error('price payload missing externalId/amount')
-        const variantId = await resolveVariantId(client, input.connectionId, externalId)
-        const bookId = await resolveBookId(client, input.storeId, typeof raw.bookCode === 'string' ? raw.bookCode : undefined)
-        if (!variantId || !bookId) throw new Error(`unresolved ${!variantId ? 'variant' : 'price book'} for ${externalId}`)
-        await client.priceEntry.upsert({
-          where: { priceBookId_variantId: { priceBookId: bookId, variantId } },
-          update: { amount },
-          create: { priceBookId: bookId, variantId, amount },
-        })
-        stats.imported += 1
-      } catch (error) {
-        stats.failed += 1
-        await client.integrationError.create({ data: { storeId: input.storeId, connectionId: input.connectionId, code: 'PRICE_IMPORT_FAILED', message: (error as Error).message } })
+  try {
+    for (;;) {
+      const page = await input.provider.pullPrices(cursor)
+      for (const item of page.items) {
+        try {
+          const raw = (item ?? {}) as Record<string, any>
+          const externalId = String(raw.externalId ?? raw.id ?? '')
+          const amount = Number(raw.amount)
+          if (!externalId || !Number.isFinite(amount)) throw new Error('price payload missing externalId/amount')
+          const variantId = await resolveVariantId(client, input.connectionId, externalId)
+          const bookId = await resolveBookId(client, input.storeId, typeof raw.bookCode === 'string' ? raw.bookCode : undefined)
+          if (!variantId || !bookId) throw new Error(`unresolved ${!variantId ? 'variant' : 'price book'} for ${externalId}`)
+          await client.priceEntry.upsert({
+            where: { priceBookId_variantId: { priceBookId: bookId, variantId } },
+            update: { amount },
+            create: { priceBookId: bookId, variantId, amount },
+          })
+          stats.imported += 1
+        } catch (error) {
+          stats.failed += 1
+          try {
+            await client.integrationError.create({ data: { storeId: input.storeId, connectionId: input.connectionId, jobId: input.jobId, code: 'PRICE_IMPORT_FAILED', message: (error as Error).message, context: { externalId: String((item as Record<string, unknown> | null)?.externalId ?? '') } } })
+          } catch { throw error }
+        }
       }
+      cursor = page.nextCursor
+      if (!cursor) break
     }
-    cursor = page.nextCursor
-    if (!cursor) break
-  }
+  } catch (error) { throw new ImportExecutionError(error, { ...stats }) }
   return stats
 }

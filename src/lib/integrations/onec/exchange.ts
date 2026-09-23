@@ -1,5 +1,4 @@
 import crypto from 'node:crypto'
-import path from 'node:path'
 
 /**
  * 1C "Обмен с сайтом" (CommerceML) transport helpers — pure and testable.
@@ -8,8 +7,7 @@ import path from 'node:path'
  * session (checkauth → init → file → import for catalog; query → success for
  * orders). checkauth authenticates with HTTP Basic against credentials WE own
  * (env / secret storage, never the connection config blob); it returns a cookie
- * that authorises the rest of the session. We mint that cookie as a stateless
- * HMAC token so no session table is needed.
+ * that authorises the rest of the session. The cookie identifies a durable source-bound session.
  *
  * The CommerceML payload schema (import.xml / offers.xml) is dialect-specific
  * and deliberately NOT parsed here — that mapping lands with a real sample.
@@ -60,36 +58,30 @@ export function readCookie(header: string | null | undefined, name: string): str
   return null
 }
 
-/** Mint a stateless HMAC session token: `1c.<expiryMs>.<sig>`. */
-export function mintSession(secret: string, ttlMs = 6 * 60 * 60 * 1000, now = Date.now()): string {
-  const payload = `1c.${now + ttlMs}`
-  const sig = crypto.createHmac('sha256', secret).update(payload).digest('base64url')
-  return `${payload}.${sig}`
+/** Signed opaque session ID; source, revision, credentials and expiry live in the journal. */
+export function mintSession(secret: string, sessionId: string): string {
+  const payload = `onec2.${sessionId}`
+  return `${payload}.${crypto.createHmac('sha256', secret).update(payload).digest('base64url')}`
 }
-
-/** Verify a session token's signature and expiry. */
-export function verifySession(secret: string, token: string | null | undefined, now = Date.now()): boolean {
-  if (!token) return false
+export function verifySession(secret: string, token: string | null | undefined): string | null {
+  if (!token) return null
   const parts = token.split('.')
-  if (parts.length !== 3) return false
-  const payload = `${parts[0]}.${parts[1]}`
-  const expected = crypto.createHmac('sha256', secret).update(payload).digest('base64url')
-  if (!timingSafeEqualStr(parts[2], expected)) return false
-  const exp = Number(parts[1])
-  return Number.isFinite(exp) && exp > now
+  if (parts.length !== 3 || parts[0] !== 'onec2' || !/^[a-zA-Z0-9_-]{1,128}$/.test(parts[1])) return null
+  const expected = crypto.createHmac('sha256', secret).update(`${parts[0]}.${parts[1]}`).digest('base64url')
+  return timingSafeEqualStr(parts[2], expected) ? parts[1] : null
 }
 
 /**
- * Sanitise a 1C-supplied filename to a bare basename, rejecting traversal.
+ * Validate a 1C filename, rejecting traversal and preserving subdirectories.
  * 1C sends names like `import___1.xml`, `offers___1.xml`, `import_files/...`.
- * We keep only the basename and allow a safe character set.
+ * Names are metadata only; disk paths use generated source/session/file IDs.
  */
 export function safeFilename(name: string | null | undefined): string | null {
   if (!name) return null
-  const base = path.basename(name.replace(/\\/g, '/'))
-  if (!base || base === '.' || base === '..') return null
-  if (!/^[A-Za-z0-9._-]+$/.test(base)) return null
-  return base
+  // Preserve safe subdirectories in metadata; storage uses generated IDs, not names.
+  const normalized = name.replace(/\\/g, '/')
+  if (normalized.length > 200 || normalized.split('/').some(part => !/^[A-Za-z0-9._-]+$/.test(part) || part === '.' || part === '..')) return null
+  return normalized
 }
 
 /** An empty but well-formed CommerceML document — a valid "no orders" reply. */

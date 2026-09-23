@@ -1,10 +1,10 @@
-# Baseline local/dev stack for AXIMA Commerce (M0).
-# `docker compose up -d postgres`  -> just the database (for tests / prisma).
-# `docker compose up --build`      -> full app + database.
-# Production hardening (nginx, HTTPS, backups) is layered in M1/M10.
+# Shared local/deployment stack. Production: install.sh/update.sh with immutable --image.
+# Migrations and bootstrap are explicit deployment steps, never container startup effects.
+# For development, run migrations first; app/worker belong to profile full.
 services:
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-westside}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-westside}
@@ -22,11 +22,15 @@ services:
       retries: 10
 
   app:
+    restart: unless-stopped
+    image: ${APP_IMAGE:-axima-commerce-app:local}
     build:
       context: .
       dockerfile: Dockerfile
-    environment:
+    environment: &commerce_environment
       NODE_ENV: production
+      # Fixed private path paired with the invoice_media volume below.
+      MEDIA_ROOT: /app/.media
       DATABASE_URL: ${DATABASE_URL:-postgresql://westside:westside@postgres:5432/westside}
       NEXTAUTH_URL: ${NEXTAUTH_URL:-}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-}
@@ -38,6 +42,8 @@ services:
       LICENSE_PUBLISHER_PUBLIC_KEY_PATH: ${LICENSE_PUBLISHER_PUBLIC_KEY_PATH:-/app/deployment/config/publisher-public.pem}
       # 1C "Обмен с сайтом" Basic-auth credentials (the login/password entered in
       # the client's 1C exchange node). Provided via deployment/secrets/.env.
+      ONEC_SOURCES_FILE: ${ONEC_SOURCES_FILE:-}
+      ONEC_EXCHANGE_CONNECTION_ID: ${ONEC_EXCHANGE_CONNECTION_ID:-}
       ONEC_EXCHANGE_USER: ${ONEC_EXCHANGE_USER:-}
       ONEC_EXCHANGE_PASSWORD: ${ONEC_EXCHANGE_PASSWORD:-}
     # Loopback only: nginx (on the host) proxies to 127.0.0.1:3000; the app is
@@ -52,15 +58,66 @@ services:
     volumes:
       - ./deployment:/app/deployment:ro
       - onec_exchange:/app/exchange
-    # Apply committed migrations, then start. Never `db push` in a deployment.
-    command: sh -c "node_modules/.bin/prisma migrate deploy && node server.js"
+      - invoice_media:/app/.media
+# Migrations run only through deploy.mjs after rehearsal; restart/rollback never migrates.
+    command: ['node', 'server.js']
     healthcheck:
       test: ['CMD-SHELL', 'node -e "fetch(\"http://127.0.0.1:3000/api/health\").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"']
       interval: 10s
       timeout: 5s
       retries: 10
+    profiles: ['full', 'ed']
+
+  worker:
+    image: ${APP_IMAGE:-axima-commerce-app:local}
+    environment:
+      <<: *commerce_environment
+      INTEGRATION_WORKER_INTERVAL_MS: ${INTEGRATION_WORKER_INTERVAL_MS:-5000}
+    command: ['node', 'dist/integration-worker.cjs']
+    restart: unless-stopped
+    stop_grace_period: 16m
+    healthcheck:
+      test: ['CMD', 'node', 'dist/integration-worker.cjs', '--health']
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    depends_on:
+      app:
+        condition: service_healthy
+    volumes:
+      - ./deployment:/app/deployment:ro
+      - onec_exchange:/app/exchange
     profiles: ['full']
+
+
+  # Enabled by deployment tooling when deployment/config/ed.json exists.
+  ed:
+    image: ${APP_IMAGE:-axima-commerce-app:local}
+    environment:
+      <<: *commerce_environment
+      ED_LISTEN_HOST: 0.0.0.0
+      ED_STATE_DIR: /app/exchange/ed
+    command: ['node', 'dist/enterprisedata-http-probe.cjs', '/app/deployment/config/ed.json']
+    ports:
+      - '127.0.0.1:${ED_PORT:-3318}:3318'
+    volumes:
+      - ./deployment:/app/deployment:ro
+      - onec_exchange:/app/exchange
+    restart: unless-stopped
+    stop_grace_period: 60s
+    healthcheck:
+      test: ['CMD', 'node', 'dist/enterprisedata-http-probe.cjs', '/app/deployment/config/ed.json', '--health']
+      interval: 30s
+      timeout: 8s
+      start_period: 15s
+      retries: 3
+    depends_on:
+      app:
+        condition: service_healthy
+    profiles: ['ed']
 
 volumes:
   postgres_data:
   onec_exchange:
+  invoice_media:

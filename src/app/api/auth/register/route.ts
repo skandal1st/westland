@@ -1,3 +1,5 @@
+import { CapabilityError } from '@/lib/capabilities'
+import { LicenseError } from '@/lib/license'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createRegistrationRequest, RegistrationError } from '@/lib/registration'
@@ -23,6 +25,9 @@ const ERROR_STATUS: Record<RegistrationError['code'], number> = {
   INVALID_INN: 422,
   NOT_FOUND: 404,
   NOT_PENDING: 409,
+  FORBIDDEN: 403,
+  INVALID_DELIVERY: 422,
+  REQUISITES_MISMATCH: 409,
 }
 
 export async function POST(request: Request) {
@@ -42,6 +47,7 @@ export async function POST(request: Request) {
     const status = result.status === 'APPROVED' ? 'active' : 'pending'
     return NextResponse.json({ status }, { status: 201 })
   } catch (error) {
+    if (error instanceof LicenseError || error instanceof CapabilityError) return NextResponse.json({ error: error.message }, { status: 403 })
     if (error instanceof RegistrationError) {
       return NextResponse.json({ error: error.code }, { status: ERROR_STATUS[error.code] })
     }

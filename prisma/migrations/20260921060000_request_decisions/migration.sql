@@ -1,0 +1,3 @@
+ALTER TYPE "OrderStatus" ADD VALUE 'REJECTED';
+ALTER TYPE "OrderStatus" ADD VALUE 'REVIEW_REQUIRED';
+ALTER TABLE "Order" ADD COLUMN "providerDecisionMessage" TEXT;

@@ -1,0 +1,190 @@
+{
+  "schemaVersion": 1,
+  "environment": "test",
+  "sourceKey": "onec-test-2026-09",
+  "externalExportAllowed": false,
+  "status": "contract-only; not deployed",
+  "observedConnectionId": "cmu6uoz8u00011470s5rhwxt4",
+  "observedAt": "2026-09-20T14:25:06.377Z",
+  "sourceFiles": [
+    {
+      "name": "offers0_1.xml",
+      "bytes": 20245131,
+      "sha256": "6b8b206dd03b47645e0230c66e6c9dba5a81c1c472ce7bfe82edcdfab8f652b9",
+      "products": 0,
+      "offers": 18020
+    },
+    {
+      "name": "import0_1.xml",
+      "bytes": 38926396,
+      "sha256": "061608fac9f0dfb6da3e214f557af0b545c139e292d241b6f752df9afb6d1f2e",
+      "products": 18020,
+      "offers": 0
+    }
+  ],
+  "channels": [
+    {
+      "code": "rs",
+      "paymentMethod": "BANK_TRANSFER",
+      "warehouseExternalId": "d24e713b-d5af-11ea-af75-9822eff88c58",
+      "inventoryLocationCode": "opt",
+      "sellerKey": "test-seller-rs",
+      "priceBookCode": "default",
+      "priceTypeExternalId": "a7cc060e-b2c5-11f1-a08f-00155d32a304",
+      "currency": "RUB",
+      "vat": {
+        "enabled": true,
+        "rate": 22,
+        "priceIncludesVat": true,
+        "basis": "rate observed in product XML; gross pricing is an explicit test convention"
+      }
+    },
+    {
+      "code": "nal",
+      "paymentMethod": "CASH",
+      "warehouseExternalId": "da5e35a9-e67f-11ed-b94a-3cecefa6a0b1",
+      "inventoryLocationCode": "west",
+      "sellerKey": "test-seller-nal",
+      "priceBookCode": "default",
+      "priceTypeExternalId": "a7cc060e-b2c5-11f1-a08f-00155d32a304",
+      "currency": "RUB",
+      "vat": {
+        "enabled": true,
+        "rate": 22,
+        "priceIncludesVat": true,
+        "basis": "rate observed in product XML; gross pricing is an explicit test convention"
+      }
+    }
+  ],
+  "excludedWarehouses": [
+    {
+      "externalId": "b1b1d5fb-9d14-11f0-a084-00155d32a104",
+      "reason": "No channel in this test contract; exclude explicitly, never add to rs/nal"
+    },
+    {
+      "externalId": "cd697691-836f-11eb-947a-00155d326872",
+      "reason": "No channel in this test contract; exclude explicitly, never add to rs/nal"
+    },
+    {
+      "externalId": "d24e713d-d5af-11ea-af75-9822eff88c58",
+      "reason": "No channel in this test contract; exclude explicitly, never add to rs/nal"
+    }
+  ],
+  "sellers": {
+    "test-seller-rs": {
+      "synthetic": true,
+      "externalOrganizationId": null,
+      "requisites": {
+        "companyName": "ТЕСТ — НЕ ДЛЯ ОПЛАТЫ — Продавец RS",
+        "inn": "0000000000",
+        "kpp": "000000000",
+        "legalAddress": "Тестовый адрес, не использовать для документов клиента",
+        "bank": {
+          "name": "ТЕСТ — НЕ ДЛЯ ОПЛАТЫ",
+          "bik": "000000000",
+          "account": "00000000000000000000",
+          "corAccount": "00000000000000000000"
+        },
+        "vatEnabled": true,
+        "vatRate": 22,
+        "paymentPurpose": "Тестовый документ. Не оплачивать."
+      }
+    },
+    "test-seller-nal": {
+      "synthetic": true,
+      "externalOrganizationId": null,
+      "requisites": {
+        "companyName": "ТЕСТ — НЕ ДЛЯ ОПЛАТЫ — Продавец NAL",
+        "inn": "0000000001",
+        "kpp": "000000000",
+        "legalAddress": "Тестовый адрес, не использовать для документов клиента",
+        "bank": {
+          "name": "ТЕСТ — НЕ ДЛЯ ОПЛАТЫ",
+          "bik": "000000000",
+          "account": "00000000000000000000",
+          "corAccount": "00000000000000000000"
+        },
+        "vatEnabled": true,
+        "vatRate": 22,
+        "paymentPurpose": "Тестовый документ. Не оплачивать."
+      }
+    }
+  },
+  "controls": [
+    {
+      "case": "both_positive",
+      "externalId": "2af2fdfe-de90-11e9-ae81-10bf481ec26b",
+      "sku": "DS819-A",
+      "name": "Табак для кальяна \"Дарксайд\" Кор А (Торпедо), 100 г",
+      "expectedPrice": "890.00",
+      "expectedAvailable": {
+        "rs": "2",
+        "nal": "1"
+      },
+      "expectedVatPerUnit": "160.49"
+    },
+    {
+      "case": "opt_only",
+      "externalId": "00bfba41-e04b-11e9-ad2d-10bf481ec26b",
+      "sku": "4605648021293",
+      "name": "Duft 100гр Friend Cashew",
+      "expectedPrice": "499.00",
+      "expectedAvailable": {
+        "rs": "1",
+        "nal": "0"
+      },
+      "expectedVatPerUnit": "89.98"
+    },
+    {
+      "case": "west_only",
+      "externalId": "e68ebff0-82e9-11ea-8d8a-10bf481ec26b",
+      "sku": "4640100720420",
+      "name": "ZOMO 50гр Banaboom",
+      "expectedPrice": "90.00",
+      "expectedAvailable": {
+        "rs": "0",
+        "nal": "1"
+      },
+      "expectedVatPerUnit": "16.23"
+    },
+    {
+      "case": "neither",
+      "externalId": "76e81389-728b-11eb-829d-10bf481ec26b",
+      "sku": "4605648031940",
+      "name": "Duft 25гр Brownie (Шоколадный десерт)",
+      "expectedPrice": "185.00",
+      "expectedAvailable": {
+        "rs": "0",
+        "nal": "0"
+      },
+      "expectedVatPerUnit": "33.36"
+    },
+    {
+      "case": "no_positive_price",
+      "externalId": "cfae123a-413c-11ec-947f-00155d326872",
+      "sku": "УТ-00002187",
+      "name": "1с ЭДО",
+      "expectedPrice": null,
+      "expectedAvailable": {
+        "rs": "1719",
+        "nal": "0"
+      },
+      "expectedVatPerUnit": null
+    }
+  ],
+  "priceRules": {
+    "unknownPriceType": "reject_or_quarantine",
+    "unknownCurrency": "reject_or_quarantine",
+    "zeroSourcePrice": "unpriced; never infer a free purchasable item",
+    "missingPrice": "unpriced; never borrow another price type",
+    "amountSemantics": "gross per one PCE; coefficient 1 in these controls"
+  },
+  "activationRequirements": [
+    "explicit production source and credentials",
+    "production warehouse/price/seller mappings",
+    "real seller and bank requisites",
+    "confirmed gross/net and VAT rules",
+    "complete preview without test data leakage",
+    "R05.1-R05.6 and R39/R40 completed"
+  ]
+}

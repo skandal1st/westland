@@ -1,5 +1,8 @@
 import { defineConfig } from 'vitest/config'
 import path from 'node:path'
+import { assertTestDatabase } from './scripts/test-db-guard.mjs'
+
+assertTestDatabase()
 
 /**
  * Integration test config. Requires a real PostgreSQL reachable via

@@ -51,6 +51,8 @@ enum ProductStatus {
 }
 
 enum OrderStatus {
+  REJECTED
+  REVIEW_REQUIRED
   DRAFT
   SUBMITTED
   PLACED
@@ -72,6 +74,7 @@ enum IntegrationProvider {
 }
 
 enum SyncStatus {
+  PARTIAL
   PENDING
   RUNNING
   SUCCEEDED
@@ -86,6 +89,8 @@ enum OutboxStatus {
 }
 
 enum IntegrationJobStatus {
+  PARTIAL
+  SKIPPED
   PENDING
   RUNNING
   SUCCEEDED
@@ -96,6 +101,8 @@ enum IntegrationJobStatus {
 // Order EXPORT lifecycle — deliberately separate from the business OrderStatus.
 // Provider-specific outcomes live here, never inside Order.status.
 enum OrderExportStatus {
+  AWAITING_ACK
+  DELIVERED
   PENDING
   PROCESSING
   SUCCESS
@@ -104,6 +111,9 @@ enum OrderExportStatus {
 }
 
 model Store {
+  orderNumberCounter OrderNumberCounter?
+  legacyOwnershipBatches LegacyOwnershipBatch[]
+  integrationWorker IntegrationWorker?
   id           String                  @id @default(cuid())
   slug         String                  @unique
   name         String
@@ -120,6 +130,7 @@ model Store {
   banners      SiteBanner[]
   campaigns    Campaign[]
   promotions   Promotion[]
+  giftPromotions GiftPromotion[]
   brandPages   BrandPage[]
   contentBlocks ContentBlock[]
   orders       Order[]
@@ -144,6 +155,8 @@ model AppSettings {
 }
 
 model User {
+  deliveryPointsRestricted Boolean @default(false)
+  deliveryPointGrants UserDeliveryPointGrant[]
   id           String      @id @default(cuid())
   storeId      String
   store        Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
@@ -189,6 +202,7 @@ model Customer {
   locations   CustomerLocation[]
   orders      Order[]
   registrationRequests RegistrationRequest[]
+  saleIdentities OnecSaleCustomerIdentity[]
   priceAssignment BuyerPriceAssignment?
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
@@ -197,6 +211,7 @@ model Customer {
 }
 
 model CustomerLocation {
+  userGrants UserDeliveryPointGrant[]
   id         String   @id @default(cuid())
   customerId String
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
@@ -233,6 +248,9 @@ model PriceGroup {
 }
 
 model Category {
+  @@index([mergedIntoId])
+  // Store-scoped merge alias. Originals and provider identities are retained; staff mutations flatten chains.
+  mergedIntoId String?
   id        String     @id @default(cuid())
   storeId   String
   store     Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
@@ -242,6 +260,7 @@ model Category {
   name      String
   slug      String
   sortOrder Int        @default(0)
+  hidden    Boolean    @default(false)
   products  Product[]
 
   @@unique([storeId, slug])
@@ -294,6 +313,7 @@ model ProductVariant {
   productId    String
   product      Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
   sku          String
+  sourceSku    String? // Non-unique provider code/article; sku remains the internal unique key.
   packaging    String              @default("")
   unitsPerPack Int                 @default(1)
   isDefault    Boolean             @default(true)
@@ -390,6 +410,10 @@ model PriceBook {
 }
 
 model PriceEntry {
+  sourceConnectionId String?
+  sourceGenerationId String?
+  sourceScopeKey String?
+  @@index([sourceConnectionId])
   id            String         @id @default(cuid())
   priceBookId   String
   priceBook     PriceBook      @relation(fields: [priceBookId], references: [id], onDelete: Cascade)
@@ -468,6 +492,10 @@ model FulfillmentChannel {
 // Raw per-location quantity imported from the provider. This is the SOURCE for
 // AvailabilityProjection — the storefront reads the projection, not this.
 model Stock {
+  sourceConnectionId String?
+  sourceGenerationId String?
+  sourceScopeKey String?
+  @@index([sourceConnectionId])
   id              String            @id @default(cuid())
   variantId       String
   variant         ProductVariant    @relation(fields: [variantId], references: [id], onDelete: Cascade)
@@ -499,6 +527,16 @@ model AvailabilityProjection {
 }
 
 model Order {
+  manualConfirmation OrderManualConfirmation?
+  // Immutable accepted terms written with DRAFT -> SUBMITTED; null is draft/legacy.
+  commercialSnapshot Json?
+  providerDecisionMessage String?
+  draftPriceQuote Json?
+  cancellationRequestedAt DateTime?
+  checkoutCartId String?
+  checkoutCartVersion Int?
+  checkoutIntent String?
+  checkoutReceipts CheckoutReceipt[]
   id         String             @id @default(cuid())
   storeId    String
   store      Store              @relation(fields: [storeId], references: [id], onDelete: Restrict)
@@ -525,6 +563,7 @@ model Order {
   createdAt  DateTime           @default(now())
   updatedAt  DateTime           @updatedAt
 
+  @@unique([checkoutCartId, checkoutCartVersion])
   @@unique([storeId, number])
   @@index([customerId, createdAt])
   @@index([userId, createdAt])
@@ -534,6 +573,8 @@ model Order {
 }
 
 model OrderItem {
+  giftPromotionId String?
+  giftPromotionName String?
   id          String          @id @default(cuid())
   orderId     String
   order       Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -542,6 +583,7 @@ model OrderItem {
   variantId   String?
   variant     ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
   sku         String
+  sourceSku String? // Article snapshot for display; historical rows remain unchanged.
   productName String
   packaging   String
   quantity    Decimal         @db.Decimal(18, 3)
@@ -553,6 +595,8 @@ model OrderItem {
 // fulfillment channel. Prices/availability are resolved live for display and
 // re-validated + snapshotted at checkout (client can never dictate price).
 model Cart {
+  giftSelections Json?
+  version Int @default(0)
   id                   String              @id @default(cuid())
   storeId              String
   userId               String              @unique
@@ -583,6 +627,11 @@ model CartItem {
 // is the idempotency key at the provider, so re-submitting one order never
 // creates a duplicate. Retries are bounded; errors persist in IntegrationError.
 model OrderExport {
+  enterpriseDataDelivery EnterpriseDataDelivery?
+  onecDelivery OnecSaleDelivery?
+  @@index([connectionId, status, availableAt])
+  leaseToken     String?
+  leaseExpiresAt DateTime?
   id           String            @id @default(cuid())
   storeId      String
   orderId      String            @unique
@@ -601,6 +650,8 @@ model OrderExport {
 
   @@index([status, availableAt])
   @@index([storeId, status])
+
+  @@index([status, leaseExpiresAt])
 }
 
 // An issued invoice is an immutable financial document. The seller/buyer
@@ -618,6 +669,8 @@ model Invoice {
   number         String        @unique
   version        Int           @default(1)
   status         InvoiceStatus @default(ISSUED)
+  // Null preserves legacy rendering; new invoices freeze the accepted payment method.
+  paymentMethod  PaymentMethod?
   sellerSnapshot Json?
   buyerSnapshot  Json?
   subtotal       Decimal       @default(0) @db.Decimal(18, 2)
@@ -628,8 +681,10 @@ model Invoice {
   lines          InvoiceLine[]
   issuedAt       DateTime      @default(now())
   pdfPath        String?
+  issueRequestKey String?
 
   @@unique([orderId, version])
+  @@unique([orderId, issueRequestKey])
   @@index([storeId, status])
 }
 
@@ -761,7 +816,28 @@ model ContentBlock {
   @@index([storeId, placement, isActive, sortOrder])
 }
 
+enum SourceEnvironment {
+  UNCLASSIFIED
+  TEST
+  PRODUCTION
+}
+
+enum SourceState {
+  PREPARING
+  ACTIVE
+  RETIRED
+}
+
 model IntegrationConnection {
+  directoryRecords EnterpriseDataRecord[]
+  directoryImports EnterpriseDataImport[]
+  partnerImports PartnerDirectoryImport[]
+  enterpriseDataDeliveries EnterpriseDataDelivery[]
+  enterpriseDataSequence EnterpriseDataSequence?
+  saleCustomerIdentities OnecSaleCustomerIdentity[]
+  saleInbox OnecSaleInbox[]
+  saleDeliveries OnecSaleDelivery[]
+  legacyOwnershipBatches LegacyOwnershipBatch[]
   id         String              @id @default(cuid())
   storeId    String
   store      Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
@@ -769,6 +845,13 @@ model IntegrationConnection {
   name       String
   enabled    Boolean             @default(false)
   config     Json?
+  exchangeRevision Int @default(1)
+  exchangeSessions OnecExchangeSession[]
+  exchangeGenerations OnecGeneration[]
+  environment SourceEnvironment @default(UNCLASSIFIED)
+  sourceState SourceState       @default(PREPARING)
+  // Migration enforces one ACTIVE source per store with a partial unique index.
+
   references  ExternalReference[]
   cursors     SyncCursor[]
   runs        SyncRun[]
@@ -793,6 +876,7 @@ model ExternalReference {
 
   @@unique([connectionId, entityType, externalId])
   @@unique([connectionId, entityType, entityId])
+  @@index([entityType, entityId])
 }
 
 model SyncCursor {
@@ -808,6 +892,10 @@ model SyncCursor {
 }
 
 model SyncRun {
+  queued Boolean @default(false)
+  jobs IntegrationJob[]
+  leaseToken     String?
+  leaseExpiresAt DateTime?
   id           String                @id @default(cuid())
   connectionId String
   connection   IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
@@ -818,6 +906,8 @@ model SyncRun {
   startedAt    DateTime?
   finishedAt   DateTime?
   createdAt    DateTime              @default(now())
+
+  @@index([status, leaseExpiresAt])
 }
 
 model OutboxEvent {
@@ -838,6 +928,16 @@ model OutboxEvent {
 // (no broker). Jobs are idempotent (unique idempotencyKey), retried up to
 // maxAttempts, and resumable after restart via SyncCheckpoint.
 model IntegrationJob {
+  syncRunId String?
+  syncRun SyncRun? @relation(fields: [syncRunId], references: [id], onDelete: Cascade)
+  dependsOnId String?
+  dependsOn IntegrationJob? @relation("JobDependency", fields: [dependsOnId], references: [id], onDelete: Restrict)
+  dependents IntegrationJob[] @relation("JobDependency")
+  @@index([syncRunId])
+  @@index([dependsOnId])
+  generationId   String?
+  leaseToken     String?
+  leaseExpiresAt DateTime?
   id             String               @id @default(cuid())
   storeId        String
   connectionId   String
@@ -859,6 +959,8 @@ model IntegrationJob {
 
   @@index([status, availableAt])
   @@index([connectionId, type])
+
+  @@index([status, leaseExpiresAt])
 }
 
 model IntegrationAttempt {
@@ -894,6 +996,8 @@ model IntegrationError {
 // Cross-job resume marker for page-based import. Survives restarts so a new run
 // continues where the previous left off.
 model SyncCheckpoint {
+  failed         Int @default(0)
+  generationId   String?
   id             String                @id @default(cuid())
   connectionId   String
   connection     IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
@@ -980,4 +1084,267 @@ model AuditEntry {
   @@index([storeId, createdAt])
   @@index([targetType, targetId])
   @@index([actorId])
+}
+
+
+// Durable upload journal. JSON contains file/chunk metadata, never raw bytes or credentials.
+model OnecExchangeSession {
+  saleInbox OnecSaleInbox[]
+  saleBatch OnecSaleBatch?
+  id               String @id @default(uuid())
+  connectionId     String
+  connection       IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  sourceRevision   Int
+  credentialDigest String
+  files            Json @default("[]")
+  initializedAt    DateTime?
+  closedAt         DateTime?
+  expiresAt        DateTime
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  @@index([connectionId, createdAt])
+}
+
+// Immutable, explicitly published manifest. Files come only from closed source sessions.
+model OnecGeneration {
+  id             String @id @default(uuid())
+  connectionId   String
+  connection     IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  sourceRevision Int
+  files          Json
+  digest         String
+  createdAt      DateTime @default(now())
+  @@unique([connectionId, sourceRevision, digest])
+  @@index([connectionId, createdAt])
+}
+
+
+// One bounded integration runner per installation/store; no broker or HTTP trigger.
+model IntegrationWorker {
+  id String @id
+  storeId String @unique
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  leaseToken String?
+  leaseExpiresAt DateTime?
+  lastStartedAt DateTime?
+  lastFinishedAt DateTime?
+  lastError String?
+}
+
+
+// Durable operator receipt; never used by automatic import to bypass ownership checks.
+model LegacyOwnershipBatch {
+  id String @id @default(cuid())
+  storeId String
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  connectionId String
+  connection IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  digest String @unique
+  plan Json
+  afterHash String
+  appliedAt DateTime @default(now())
+  rolledBackAt DateTime?
+  @@index([storeId, connectionId])
+}
+
+model CheckoutReceipt {
+  key String @id
+  orderId String
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  @@index([orderId])
+}
+
+model OrderNumberCounter {
+  storeId String @id
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  value BigInt @default(0)
+}
+
+// Frozen outbound XML identity. WEBSITE does not claim to be a verified ERP mapping.
+model OnecSaleCustomerIdentity {
+  connectionId String
+  connection IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  customerId String
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  xmlId String
+  origin String
+  inn String
+  kpp String?
+  createdAt DateTime @default(now())
+
+  @@id([connectionId, customerId])
+  @@unique([connectionId, xmlId])
+  @@index([customerId])
+}
+
+model OnecSaleDelivery {
+  id           String @id @default(uuid())
+  exportId     String @unique
+  export       OrderExport @relation(fields: [exportId], references: [id], onDelete: Cascade)
+  connectionId String
+  connection   IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  xml          String
+  sha256       String
+  receivedAt   DateTime?
+  createdAt    DateTime @default(now())
+  batches      OnecSaleBatchItem[]
+  @@index([connectionId, receivedAt])
+}
+
+model OnecSaleBatch {
+  id         String @id @default(uuid())
+  sessionId  String @unique
+  session    OnecExchangeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  xml        String
+  sha256     String
+  receivedAt DateTime?
+  createdAt  DateTime @default(now())
+  items      OnecSaleBatchItem[]
+}
+
+model OnecSaleBatchItem {
+  batchId    String
+  batch      OnecSaleBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  deliveryId String
+  delivery   OnecSaleDelivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  @@id([batchId, deliveryId])
+  @@index([deliveryId])
+}
+
+// Durable inbound transport receipt. PENDING_REVIEW does not confirm an order.
+model OnecSaleInbox {
+  id String @id @default(uuid())
+  connectionId String
+  connection IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  sessionId String
+  session OnecExchangeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  filename String
+  sha256 String
+  xml String
+  bytes Int
+  documentCount Int
+  status String @default("PENDING_REVIEW")
+  createdAt DateTime @default(now())
+  @@unique([connectionId, sha256])
+  @@index([connectionId, status, createdAt])
+}
+
+// Manager attestation of an actual 1C document; never substitutes its number for a GUID.
+model OrderManualConfirmation {
+  id String @id @default(cuid())
+  orderId String @unique
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  storeId String
+  connectionId String
+  documentNumber String
+  documentDate DateTime @db.Date
+  termsHash String
+  total Decimal @db.Decimal(18, 2)
+  vatAmount Decimal @db.Decimal(18, 2)
+  actorId String
+  actorEmail String
+  confirmedAt DateTime @default(now())
+  revokedAt DateTime?
+  @@unique([connectionId, documentNumber, documentDate])
+  @@index([storeId, confirmedAt])
+}
+
+// Explicit per-account delivery access. The customer boundary is checked on every read/write.
+model UserDeliveryPointGrant {
+  origin String @default("MODERATOR")
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  locationId String
+  location CustomerLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  assignedById String
+  createdAt DateTime @default(now())
+
+  @@id([userId, locationId])
+  @@index([locationId])
+}
+
+// Site order outbox. Protocol delivery never implies a manager/business approval.
+model EnterpriseDataSequence {
+  connectionId String @id
+  connection IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  namespace String
+  prefix String
+  value Int @default(0)
+}
+model EnterpriseDataDelivery {
+  id String @id @default(uuid())
+  exportId String @unique
+  export OrderExport @relation(fields: [exportId], references: [id], onDelete: Cascade)
+  connectionId String
+  connection IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  documentId String
+  number String
+  xml String
+  sha256 String
+  receivedAt DateTime?
+  createdAt DateTime @default(now())
+  @@unique([connectionId, documentId])
+  @@unique([connectionId, number])
+  @@index([connectionId, receivedAt])
+}
+
+// Source directory is independent of accounts and access grants.
+model EnterpriseDataRecord {
+  id String @id @default(cuid())
+  connectionId String
+  connection IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  kind String
+  externalId String
+  name String
+  inn String @default("")
+  kpp String @default("")
+  archived Boolean @default(false)
+  normalized Json
+  raw Json
+  fingerprint String
+  messageNo Int
+  syncToSite Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([connectionId, kind, externalId])
+  @@index([connectionId, kind, name])
+  @@index([connectionId, inn])
+}
+model EnterpriseDataImport {
+  id String @id @default(uuid())
+  connectionId String
+  connection IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  messageNo Int
+  sha256 String
+  objectCount Int
+  receivedAt DateTime @default(now())
+  @@unique([connectionId, messageNo])
+}
+
+// Independent file snapshots of native UT partners, outside ED message counters.
+model PartnerDirectoryImport {
+  id String @id @default(uuid())
+  connectionId String
+  connection IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  batchId String
+  sha256 String
+  objectCount Int
+  exportedAt DateTime
+  receivedAt DateTime @default(now())
+  @@unique([connectionId, batchId])
+}
+
+// Quantity-based gifts are separate from contextual price discounts.
+model GiftPromotion {
+  id String @id @default(cuid())
+  storeId String
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  name String
+  isActive Boolean @default(false)
+  startsAt DateTime?
+  endsAt DateTime?
+  rule Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([storeId, isActive])
 }

@@ -20,7 +20,7 @@ const patchSchema = z
   .refine((v) => !(v.startsAt && v.endsAt) || v.startsAt < v.endsAt, { message: 'startsAt must be before endsAt', path: ['endsAt'] })
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
-  const auth = await requireApiUser(['STAFF', 'ADMIN'])
+  const auth = await requireApiUser(['STAFF', 'ADMIN'], 'promotions')
   if ('response' in auth) return auth.response
   const store = await getActiveStore()
   const existing = await prisma.campaign.findFirst({ where: { id: params.id, storeId: store.id }, select: { id: true } })
@@ -35,7 +35,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 }
 
 export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
-  const auth = await requireApiUser(['STAFF', 'ADMIN'])
+  const auth = await requireApiUser(['STAFF', 'ADMIN'], 'promotions')
   if ('response' in auth) return auth.response
   const store = await getActiveStore()
   const existing = await prisma.campaign.findFirst({ where: { id: params.id, storeId: store.id }, select: { id: true } })

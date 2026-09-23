@@ -44,7 +44,7 @@ describe('deploymentProfileToRuntime', () => {
   it('maps the deployment shape into a runtime profile with defaults', () => {
     const p = deploymentProfileToRuntime(deploymentProfile)
     expect(p.identity).toEqual({ code: 'acme', name: 'ACME Wholesale', legalName: undefined })
-    expect(p.modules).toEqual({ b2b: true, content: false, invoices: true, promotions: false })
+    expect(p.modules).toEqual({ core: true, b2b: true, content: false, invoices: true, promotions: false })
     expect(p.integrations.primaryErp).toBe('one-c')
     // defaults
     expect(p.policies).toEqual({ catalogRequiresAuth: true, registration: 'manual', requireAgeConfirmation: true })

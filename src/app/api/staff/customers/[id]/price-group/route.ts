@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic'
 const schema = z.object({ priceGroupId: z.string().min(1) })
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
-  const auth = await requireApiUser(['STAFF', 'ADMIN'])
+  const auth = await requireApiUser(['STAFF', 'ADMIN'], 'commerce-b2b')
   if ('response' in auth) return auth.response
   const store = await getActiveStore()
 

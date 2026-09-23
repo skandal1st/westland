@@ -1,3 +1,5 @@
+import { CapabilityError } from '@/lib/capabilities'
+import { LicenseError } from '@/lib/license'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireApiUser } from '@/lib/authz'
@@ -17,7 +19,7 @@ const schema = z.object({
 })
 
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
-  const auth = await requireApiUser(['STAFF', 'ADMIN'])
+  const auth = await requireApiUser(['STAFF', 'ADMIN'], 'content')
   if ('response' in auth) return auth.response
 
   const body = await request.json().catch(() => null)
@@ -28,6 +30,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     const updated = await updateProductContent(params.id, parsed.data, { actor: auth.user })
     return NextResponse.json({ content: { displayName: updated.displayName, slug: updated.slug, description: updated.description } })
   } catch (error) {
+    if (error instanceof LicenseError || error instanceof CapabilityError) return NextResponse.json({ error: error.message }, { status: 403 })
     if (error instanceof ContentError) {
       return NextResponse.json({ error: error.code }, { status: error.code === 'NOT_FOUND' ? 404 : 409 })
     }

@@ -23,3 +23,14 @@ describe('order state machine', () => {
     expect(mapProviderStatus('ERROR_1C')).toBeNull()
   })
 })
+
+it('R19 distinguishes business refusal/review from transport acceptance', () => {
+  expect(mapProviderStatus('ACCEPTED')).toBeNull()
+  expect(mapProviderStatus('SUCCESS')).toBeNull()
+  expect(mapProviderStatus('rejected')).toBe('REJECTED')
+  expect(mapProviderStatus('PARTIALLY_CONFIRMED')).toBe('REVIEW_REQUIRED')
+  expect(canTransition('SUBMITTED', 'REJECTED')).toBe(true)
+  expect(canTransition('REJECTED', 'CONFIRMED')).toBe(false)
+  expect(canTransition('REVIEW_REQUIRED', 'PROCESSING')).toBe(false)
+  expect(canTransition('REVIEW_REQUIRED', 'CONFIRMED')).toBe(true)
+})

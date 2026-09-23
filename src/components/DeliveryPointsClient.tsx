@@ -8,13 +8,14 @@ const emptyDraft = { name: '', city: '', address: '', contactName: '', contactPh
 
 export function DeliveryPointsClient() {
   const [points, setPoints] = useState<Location[]>([])
+  const [canCreate, setCanCreate] = useState(false)
   const [adding, setAdding] = useState(false)
   const [draft, setDraft] = useState(emptyDraft)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     const response = await fetch('/api/account/locations')
-    if (response.ok) setPoints((await response.json()).locations ?? [])
+    if (response.ok) { const data = await response.json(); setPoints(data.locations ?? []); setCanCreate(data.canCreate === true) }
   }, [])
   useEffect(() => { load() }, [load])
 
@@ -23,13 +24,16 @@ export function DeliveryPointsClient() {
     setError(null)
     const response = await fetch('/api/account/locations', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(draft) })
     if (response.ok) { setDraft(emptyDraft); setAdding(false); await load() }
-    else setError('Не удалось сохранить точку (нужна привязанная компания).')
+    else {
+      const data = await response.json().catch(() => ({}))
+      setError(data.error === 'address_too_long' ? 'Город и адрес вместе должны занимать не более 255 символов. Сократите адрес.' : data.error === 'invalid_input' ? 'Укажите название, город и адрес точки.' : 'Не удалось сохранить точку. Обновите страницу и повторите.')
+    }
   }
 
   return (
     <main className="account-page">
-      <header><div><h1>Точки доставки</h1><p>Добавьте адреса заведений или магазинов, куда будут доставляться заказы.</p></div><button className="button button-primary" type="button" onClick={() => setAdding((value) => !value)}><Plus /> Добавить точку</button></header>
-      {adding ? (
+      <header><div><h1>Точки доставки</h1><p>{canCreate ? 'Добавьте адреса заведений или магазинов, куда будут доставляться заказы.' : 'Точки доставки, назначенные вам менеджером.'}</p></div>{canCreate ? <button className="button button-primary" type="button" onClick={() => setAdding((value) => !value)}><Plus /> Добавить точку</button> : null}</header>
+      {adding && canCreate ? (
         <form className="location-form" onSubmit={submit}>
           <h2>Новая точка</h2>
           <div className="form-row"><label>Название<input required value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Название точки" /></label><label>Город<input required value={draft.city} onChange={(event) => setDraft({ ...draft, city: event.target.value })} placeholder="Город" /></label></div>
@@ -40,7 +44,7 @@ export function DeliveryPointsClient() {
         </form>
       ) : null}
       {points.length === 0 ? (
-        <div className="locations-empty"><MapPin /><h2>Точек пока нет</h2><p>Добавьте первую точку, чтобы выбрать её при оформлении заказа.</p></div>
+        <div className="locations-empty"><MapPin /><h2>Точек пока нет</h2><p>{canCreate ? 'Добавьте первую точку, чтобы выбрать её при оформлении заказа.' : 'Обратитесь к менеджеру для назначения точек доставки.'}</p></div>
       ) : (
         <div className="locations-list">{points.map((point) => <div className={'location-card' + (point.isDefault ? ' selected' : '')} key={point.id}><MapPin /><span><strong>{point.name}</strong><small>{point.city}, {point.address}</small><small>{point.contactName} · {point.contactPhone}</small></span>{point.isDefault ? <b>По умолчанию</b> : null}</div>)}</div>
       )}

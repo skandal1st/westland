@@ -1,10 +1,13 @@
+import { CapabilityError } from '@/lib/capabilities'
+import { LicenseError } from '@/lib/license'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { requireApiUser } from '@/lib/authz'
 import { getActiveStore } from '@/lib/store'
-import { retryJob, runDueJobs } from '@/lib/integrations/jobs'
+import { retryJob } from '@/lib/integrations/jobs'
 import { AuditAction, recordAudit } from '@/lib/audit'
-import { ProviderNotConfiguredError } from '@/lib/integrations/provider'
+import { IntegrationInputError as ExchangeError } from '@/lib/integrations/errors'
+import { SourceProfileError } from '@/lib/integrations/sources'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -15,7 +18,7 @@ export const dynamic = 'force-dynamic'
  * no-op and returns its current status without re-running it.
  */
 export async function POST(_request: Request, { params }: { params: { jobId: string } }) {
-  const auth = await requireApiUser(['STAFF', 'ADMIN'])
+  const auth = await requireApiUser(['STAFF', 'ADMIN'], 'commerce-core')
   if ('response' in auth) return auth.response
   const store = await getActiveStore()
 
@@ -26,19 +29,20 @@ export async function POST(_request: Request, { params }: { params: { jobId: str
     return NextResponse.json({ jobId: existing.id, status: 'succeeded', idempotent: true })
   }
 
-  const job = await retryJob(existing.id)
+  let job
+  try {
+    job = await retryJob(existing.id)
+  } catch (error) {
+    if (error instanceof LicenseError || error instanceof CapabilityError) return NextResponse.json({ error: error.message }, { status: 403 })
+    if (error instanceof ExchangeError) return NextResponse.json({ error: error.code }, { status: error.status })
+    if (error instanceof SourceProfileError) return NextResponse.json({ error: error.code }, { status: 409 })
+    throw error
+  }
   await recordAudit(prisma, {
     storeId: store.id, actor: auth.user, action: AuditAction.IntegrationRetried,
     targetType: 'IntegrationJob', targetId: existing.id, summary: `Integration job ${job?.type ?? ''} retried`,
   })
 
-  try {
-    const results = await runDueJobs({ limit: 5 })
-    return NextResponse.json({ result: results.find((r) => r.jobId === existing.id) ?? null })
-  } catch (error) {
-    if (error instanceof ProviderNotConfiguredError) {
-      return NextResponse.json({ error: 'provider_not_configured', provider: error.provider }, { status: 409 })
-    }
-    throw error
-  }
+  if (!job) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+  return NextResponse.json({ jobId: job.id, status: job.status.toLowerCase(), queued: job.status !== 'SUCCEEDED' }, { status: job.status === 'SUCCEEDED' ? 200 : 202 })
 }

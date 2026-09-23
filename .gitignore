@@ -8,6 +8,9 @@ public/uploads
 .media
 .impeccable/review
 .impeccable/build
-deployment
+/deployment/
 services/license-server/keys
 services/license-server/data
+backups
+
+dist/

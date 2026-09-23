@@ -26,15 +26,13 @@ describe('1C exchange transport helpers', () => {
     expect(checkCredentials({ user: 'a', pass: 'b' }, {})).toBe(false)
   })
 
-  it('mints and verifies a stateless session, rejecting tamper and expiry', () => {
-    const secret = 'x'.repeat(32)
-    const now = 1_000_000
-    const token = mintSession(secret, 60_000, now)
-    expect(verifySession(secret, token, now + 30_000)).toBe(true)
-    expect(verifySession(secret, token, now + 90_000)).toBe(false) // expired
-    expect(verifySession(secret, token + 'a', now + 30_000)).toBe(false) // tampered sig
-    expect(verifySession('other-secret', token, now + 30_000)).toBe(false) // wrong key
-    expect(verifySession(secret, null, now)).toBe(false)
+  it('signs an opaque journal session and rejects legacy/tampered tokens', () => {
+    const token = mintSession('secret', 'session-123')
+    expect(verifySession('secret', token)).toBe('session-123')
+    expect(verifySession('other', token)).toBeNull()
+    expect(verifySession('secret', token + 'a')).toBeNull()
+    expect(verifySession('secret', '1c.9999999999999.sig')).toBeNull()
+    expect(verifySession('secret', null)).toBeNull()
   })
 
   it('reads a named cookie from a raw header', () => {
@@ -45,8 +43,8 @@ describe('1C exchange transport helpers', () => {
 
   it('sanitises filenames and blocks path traversal', () => {
     expect(safeFilename('import___1.xml')).toBe('import___1.xml')
-    expect(safeFilename('import_files/pic.jpg')).toBe('pic.jpg')
-    expect(safeFilename('../../etc/passwd')).toBe('passwd')
+    expect(safeFilename('import_files/pic.jpg')).toBe('import_files/pic.jpg')
+    expect(safeFilename('../../etc/passwd')).toBeNull()
     expect(safeFilename('..')).toBeNull()
     expect(safeFilename('bad name!.xml')).toBeNull()
     expect(safeFilename('')).toBeNull()

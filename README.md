@@ -29,16 +29,8 @@ Westside является первой клиентской конфигурац
 
 Основные маршруты: `/`, `/catalog`, `/login`, `/register`, `/account/locations`, `/checkout`, `/staff`.
 
-## Self-Hosted installer и лицензирование
+## Self-Hosted установка и лицензирование
 
-Первый реализованный slice использует выбранную гибридную модель: сервер AXIMA выдаёт подписанный grant, привязанный к локально созданной installation identity; после активации проверка выполняется локально и не требует heartbeat.
+Поддерживаемый путь: `sh install.sh --image registry/image@sha256:... --config /private/install.config.json`. Скрипт выполняет активацию, миграции, bootstrap и проверяет app/worker; подробности в [DEPLOYMENT.md](DEPLOYMENT.md). Identity и секреты сохраняются при повторном запуске. `scripts/install.mjs` — внутренний helper конфигурации, не самостоятельная установка.
 
-```bash
-npm run license:keygen
-npm run license:issue -- --customer westside --modules commerce-core,commerce-b2b,content,invoices
-npm run license:server
-npm run install:server -- plan --config install.config.example.json
-npm run install:server -- apply --config install.config.example.json
-```
-
-Activation key, `DATABASE_URL` и SMTP password передаются только через имена environment-переменных из install-конфига. Generated state сохраняется в `deployment/config` и `deployment/secrets`; эти каталоги исключены из Git. Текущий slice не включает Prisma bootstrap, SMTP test и runtime-enforcement модулей — они перечислены в [implementation plan](./docs/security/licensing-hardening/implementation/hybrid-activation-local-grant.md).
+Обновление: `sh update.sh --image sha256:...`; обязательные backup и проверка миграций на изолированной копии БД. Проверка установленной версии: `node scripts/deploy.mjs verify`. Полный Linux drill точного образа: `npm run check:deployment -- sha256:...`.

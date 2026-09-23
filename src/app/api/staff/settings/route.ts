@@ -21,7 +21,7 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
-  const auth = await requireApiUser(['ADMIN'])
+  const auth = await requireApiUser(['ADMIN'], 'commerce-core')
   if ('response' in auth) return auth.response
   const store = await getActiveStore()
 

@@ -1,3 +1,5 @@
+import { hasInvoiceConfirmation } from '@/lib/orders/confirmation'
+import { readCommercialSnapshot } from '@/lib/orders/commercial-snapshot'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/authz'
@@ -13,7 +15,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
 
   const order = await prisma.order.findFirst({
     where: { id: params.id, storeId: user.storeId, userId: user.id },
-    include: { items: true, export: { select: { status: true } } },
+    include: { manualConfirmation: true, items: true, export: { select: { status: true, connectionId: true, externalId: true, confirmedAt: true, attempts: true, submittedAt: true } } },
   })
   if (!order) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
@@ -22,12 +24,17 @@ export async function GET(_request: Request, { params }: { params: { id: string 
     id: order.id,
     number: order.number,
     status: order.status,
-    total: Number(order.total),
+    total: order.total.toFixed(2),
     currency: order.currency,
     comment: order.comment,
     createdAt: order.createdAt,
+    cancellationRequestedAt: order.cancellationRequestedAt,
+    providerDecisionMessage: order.providerDecisionMessage,
+    manuallyConfirmed: !!order.manualConfirmation && hasInvoiceConfirmation(order, readCommercialSnapshot(order.commercialSnapshot, order)),
+    erpConfirmed: !!order.export?.externalId && !!order.export?.confirmedAt,
+    transferStarted: !!order.export && (order.export.attempts > 0 || !!order.export.externalId || !!order.export.submittedAt || ['PROCESSING', 'SUCCESS'].includes(order.export.status)),
     export: order.export?.status ?? null,
-    items: order.items.map((i) => ({ sku: i.sku, name: i.productName, packaging: i.packaging, quantity: Number(i.quantity), unitPrice: Number(i.unitPrice), lineTotal: Number(i.lineTotal) })),
+    items: order.items.map((i) => ({ sku: i.sku, sourceSku: i.sourceSku, name: i.productName, packaging: i.packaging, quantity: Number(i.quantity), unitPrice: i.unitPrice.toFixed(2), lineTotal: i.lineTotal.toFixed(2) })),
     invoice: invoice ? { id: invoice.id, number: invoice.number, version: invoice.version, issuedAt: invoice.issuedAt } : null,
   })
 }

@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { requireApiUser } from '@/lib/authz'
-import { getActiveStore } from '@/lib/store'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -12,9 +11,8 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url)
   const status = url.searchParams.get('status') ?? 'PENDING'
-  const store = await getActiveStore()
   const requests = await prisma.registrationRequest.findMany({
-    where: { storeId: store.id, ...(status === 'ALL' ? {} : { status: status as 'PENDING' | 'APPROVED' | 'REJECTED' }) },
+    where: { storeId: auth.user.storeId, ...(status === 'ALL' ? {} : { status: status as 'PENDING' | 'APPROVED' | 'REJECTED' }) },
     orderBy: { createdAt: 'desc' },
     take: 100,
     select: {
@@ -22,5 +20,11 @@ export async function GET(request: Request) {
       status: true, comment: true, reviewedAt: true, createdAt: true,
     },
   })
-  return NextResponse.json({ requests })
+  const customers = await prisma.customer.findMany({ where: { storeId: auth.user.storeId, inn: { in: requests.map(r => r.inn) } },
+    select: { inn: true, kpp: true, locations: { select: { id: true, name: true, city: true, address: true }, orderBy: { name: 'asc' } } } })
+  const byInn = new Map(customers.map(customer => [customer.inn, customer]))
+  return NextResponse.json({ requests: requests.map(request => {
+    const customer = byInn.get(request.inn)
+    return { ...request, deliveryLocations: customer && (customer.kpp ?? '') === (request.kpp ?? '') ? customer.locations : [] }
+  }) })
 }

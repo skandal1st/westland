@@ -1,3 +1,4 @@
+import { assertCapability } from '@/lib/capabilities'
 import { prisma } from '@/lib/db'
 import { AuditAction, recordAudit } from '@/lib/audit'
 import type { SessionUser } from '@/lib/authz'
@@ -9,6 +10,7 @@ import type { SessionUser } from '@/lib/authz'
 export async function assignBuyerPriceGroup(
   input: { storeId: string; customerId: string; priceGroupId: string; actor: SessionUser | null },
 ) {
+  assertCapability('commerce-b2b')
   return prisma.$transaction(async (tx) => {
     const assignment = await tx.buyerPriceAssignment.upsert({
       where: { customerId: input.customerId },

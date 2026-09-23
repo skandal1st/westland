@@ -1,3 +1,4 @@
+import type { CommercialSnapshot } from '@/lib/orders/commercial-snapshot'
 /**
  * OperationalProvider — the replaceable boundary to an external operational
  * system (1C, MoySklad, AXIMA One, ...). The domain depends on this port, never
@@ -12,21 +13,26 @@
  */
 export type ProviderKind = 'ONE_C' | 'MOYSKLAD' | 'CUSTOM'
 
-export type ProviderPage = { items: unknown[]; nextCursor?: string }
+export type ImportMode = 'full' | 'delta' | 'unknown'
+export type ProviderPage = { items: unknown[]; nextCursor?: string; mode?: ImportMode; scope?: string[]; sourceUpdatedAt?: string | null }
 
 /** Transport-independent order payload. `id` is the Commerce Order ID = idempotency key. */
 export type OrderExportPayload = {
+  /** Immutable accepted terms, including seller, warehouse, VAT and exact decimal strings. */
+  terms: CommercialSnapshot
   id: string
   number: string
   customer: { id: string; inn: string; legalName: string }
   delivery: { name: string; city: string; address: string }
   channel: { code: string; paymentMethod: string }
-  items: Array<{ sku: string; quantity: number; unitPrice: number }>
-  total: number
+  items: Array<{ sku: string; quantity: string; unitPrice: string }>
+  total: string
   currency: string
 }
 
 export interface OperationalProvider {
+  generationId?: string
+  sourceId?: string
   readonly provider: ProviderKind
   healthcheck(): Promise<{ ok: boolean; message?: string }>
   /** One page of raw product payloads. `cursor` is opaque and provider-defined. */
@@ -37,8 +43,12 @@ export interface OperationalProvider {
   pullAvailability?(cursor?: string): Promise<ProviderPage>
   /** Submit an order (M7). MUST be idempotent on `order.id`. */
   submitOrder?(order: OrderExportPayload): Promise<{ externalId: string; acceptedAt: Date }>
-  /** Reconcile an exported order's status (M7). */
-  getOrderStatus?(externalId: string): Promise<{ status: string }>
+  /** Reconcile a business decision. Adapters must normalize native statuses.
+   * CONFIRMED approves the original composition/total; PARTIALLY_CONFIRMED
+   * requires review. Transport ACCEPTED is not business confirmation.
+   * customerMessage, if present, must be safe for the buyer, never a raw error.
+   */
+  getOrderStatus?(externalId: string): Promise<{ status: string; customerMessage?: string }>
 }
 
 export class ProviderNotConfiguredError extends Error {

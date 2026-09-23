@@ -13,7 +13,7 @@ const fixtures = (prefix: string, n: number) =>
   Array.from({ length: n }, (_, i) => ({ externalId: `${prefix}-${i + 1}`, sku: `${prefix}-${i + 1}`, name: `${prefix} товар ${i + 1}`, packaging: '25 г' }))
 
 async function connection(config?: Record<string, unknown>) {
-  return prisma.integrationConnection.create({ data: { storeId, provider: 'CUSTOM', name: `c-${Math.random().toString(36).slice(2, 8)}`, config: (config ?? undefined) as any } })
+  return prisma.integrationConnection.create({ data: { storeId, provider: 'CUSTOM', enabled: true, sourceState: 'ACTIVE', environment: 'TEST', name: `c-${Math.random().toString(36).slice(2, 8)}`, config: (config ?? undefined) as any } })
 }
 
 beforeEach(async () => {
@@ -74,6 +74,7 @@ describe('integration runtime (integration)', () => {
 
     const first = await runJob(job, { provider: failing }, prisma)
     expect(first.status).toBe('retrying')
+    await prisma.integrationJob.update({ where: { id: job.id }, data: { availableAt: new Date(0) } })
     const reloaded = await prisma.integrationJob.findUnique({ where: { id: job.id } })
     const second = await runJob(reloaded!, { provider: failing }, prisma)
     expect(second.status).toBe('failed')

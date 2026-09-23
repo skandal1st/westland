@@ -75,7 +75,7 @@ describe('pricing / availability (integration)', () => {
   })
 
   it('returns null price when there is no entry (not buyable)', async () => {
-    const other = await prisma.productVariant.create({ data: { storeId, productId: (await prisma.product.findFirstOrThrow({ where: { storeId } })).id, sku: 'NOPRICE' } })
+    const other = await prisma.productVariant.create({ data: { storeId, productId: (await prisma.product.findFirstOrThrow({ where: { storeId } })).id, sku: 'NOPRICE', isDefault: false } })
     expect(await resolveVariantPrice({ storeId, variantId: other.id, channelId: channelBankId }, prisma)).toBeNull()
   })
 

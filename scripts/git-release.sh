@@ -1,0 +1,24 @@
+#!/bin/sh
+# Build from a clean server checkout; keep data/config in the existing installation.
+set -eu
+[ "$#" -eq 1 ] || { echo 'Usage: sh scripts/git-release.sh /absolute/installation'; exit 2; }
+installation=$(CDPATH= cd -- "$1" && pwd)
+source_root=$(git rev-parse --show-toplevel)
+cd "$source_root"
+git diff --quiet && git diff --cached --quiet || { echo 'Checkout has uncommitted changes'; exit 2; }
+[ -z "$(git ls-files --others --exclude-standard)" ] || { echo 'Checkout has untracked files'; exit 2; }
+[ -f "$installation/deployment/secrets/.env" ] && [ -f "$installation/scripts/deploy.mjs" ] || { echo 'Existing installation required'; exit 2; }
+revision=$(git rev-parse HEAD)
+release="$installation/deployment/git-releases/$revision"
+mkdir -p "$release"
+chmod 700 "$release"
+printf '%s\n' "$revision" > "$release/commit.txt"
+docker build --label "org.opencontainers.image.revision=$revision" -t "axima-commerce:git-$revision" .
+image=$(docker image inspect --format '{{.Id}}' "axima-commerce:git-$revision")
+printf '%s\n' "$image" > "$release/image.txt"
+cd "$installation"
+node scripts/deploy.mjs update --image "$image"
+cp deployment/last-operation.json "$release/update-operation.json"
+node scripts/deploy.mjs verify
+cp deployment/last-operation.json "$release/verify-operation.json"
+printf 'GIT_RELEASE_PASS commit=%s image=%s\n' "$revision" "$image"

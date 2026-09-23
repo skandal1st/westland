@@ -30,3 +30,15 @@ describe('resolveSellerRequisites', () => {
     expect(resolveSellerRequisites({ channelSellerLegalEntity: { companyName: 'X' }, channelInvoiceProfile: null, storeSellerRequisites: null })).toBeNull()
   })
 })
+
+
+it('profile cannot replace seller identity, contacts or bank', () => {
+  const base = { ...company, bank: { name: 'Original', account: 'original-account' }, legalAddress: 'Original address', phone: 'original-phone' }
+  const r = resolveSellerRequisites({ channelSellerLegalEntity: base, storeSellerRequisites: null,
+    channelInvoiceProfile: { companyName: 'Other', inn: 'Other', bank: { account: 'Other' }, legalAddress: 'Other', phone: 'Other', vatEnabled: true, vatRate: 22, directorName: 'Allowed', paymentPurpose: 'Allowed purpose' } })
+  expect(r).toMatchObject({ ...base, vatEnabled: true, vatRate: 22, directorName: 'Allowed', paymentPurpose: 'Allowed purpose' })
+})
+it('an incomplete selected seller does not silently mix with store identity', () => {
+  expect(resolveSellerRequisites({ channelSellerLegalEntity: { companyName: 'Channel only' }, storeSellerRequisites: company, channelInvoiceProfile: { inn: 'injected' } })).toBeNull()
+  expect(resolveSellerRequisites({ channelSellerLegalEntity: { companyName: ' ', inn: ' ' }, storeSellerRequisites: null, channelInvoiceProfile: null })).toBeNull()
+})

@@ -1,6 +1,8 @@
+import { CapabilityError } from '@/lib/capabilities'
 import { NextResponse } from 'next/server'
 import { requireApiUser } from '@/lib/authz'
-import { getActiveStore } from '@/lib/store'
+import { z } from 'zod'
+import { LicenseError } from '@/lib/license'
 import { issueInvoice, InvoiceError } from '@/lib/invoices/invoices'
 
 export const runtime = 'nodejs'
@@ -11,6 +13,12 @@ const STATUS: Record<InvoiceError['code'], number> = {
   NOT_FOUND: 404,
   INVALID_STATE: 409,
   NO_SELLER_REQUISITES: 409,
+  NO_BANK_REQUISITES: 409,
+  SNAPSHOT_REQUIRED: 409,
+  INVALID_INPUT: 400,
+  VERSION_CONFLICT: 409,
+  REQUEST_CONFLICT: 409,
+  NUMBER_CONFLICT: 409,
 }
 
 /**
@@ -18,15 +26,20 @@ const STATUS: Record<InvoiceError['code'], number> = {
  * creates a new immutable version and VOIDs the previous one — audited as
  * InvoiceIssued / InvoiceReissued.
  */
-export async function POST(_request: Request, { params }: { params: { id: string } }) {
-  const auth = await requireApiUser(['STAFF', 'ADMIN'])
+const schema = z.object({ requestKey: z.string().uuid(), expectedVersion: z.number().int().min(0).max(2147483646) }).strict()
+
+export async function POST(request: Request, { params }: { params: { id: string } }) {
+  const auth = await requireApiUser(['STAFF', 'ADMIN'], 'invoices')
   if ('response' in auth) return auth.response
-  const store = await getActiveStore()
+  const parsed = schema.safeParse(await request.json().catch(() => null))
+  if (!parsed.success) return NextResponse.json({ error: 'INVALID_INPUT' }, { status: 400 })
 
   try {
-    const invoice = await issueInvoice({ storeId: store.id, orderId: params.id, actor: auth.user })
-    return NextResponse.json({ id: invoice.id, number: invoice.number, version: invoice.version, total: Number(invoice.total), issuedAt: invoice.issuedAt }, { status: 201 })
+    const invoice = await issueInvoice({ storeId: auth.user.storeId, orderId: params.id, actor: auth.user, ...parsed.data })
+    return NextResponse.json({ id: invoice.id, number: invoice.number, version: invoice.version, status: invoice.status, repeated: invoice.repeated, total: invoice.total.toFixed(2), issuedAt: invoice.issuedAt }, { status: invoice.repeated ? 200 : 201 })
   } catch (error) {
+    if (error instanceof LicenseError || error instanceof CapabilityError) return NextResponse.json({ error: error.message }, { status: 403 })
+
     if (error instanceof InvoiceError) return NextResponse.json({ error: error.code }, { status: STATUS[error.code] })
     throw error
   }

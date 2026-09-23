@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { z } from 'zod'
+import { bannerFields, validateBanner } from '@/lib/content/banner-validation'
 import { prisma } from '@/lib/db'
 import { requireApiUser } from '@/lib/authz'
 import { getActiveStore } from '@/lib/store'
@@ -8,21 +8,7 @@ import { invalidateContentCache } from '@/lib/content/read'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const bannerSchema = z
-  .object({
-    name: z.string().min(1),
-    placement: z.enum(['HOME', 'CATALOG']).default('CATALOG'),
-    brandId: z.string().nullish(),
-    campaignId: z.string().nullish(),
-    desktopImageUrl: z.string().url().nullish(),
-    mobileImageUrl: z.string().url().nullish(),
-    linkUrl: z.string().nullish(),
-    isActive: z.boolean().default(true),
-    sortOrder: z.number().int().default(0),
-    startsAt: z.coerce.date().nullish(),
-    endsAt: z.coerce.date().nullish(),
-  })
-  .refine((v) => !(v.startsAt && v.endsAt) || v.startsAt < v.endsAt, { message: 'startsAt must be before endsAt', path: ['endsAt'] })
+const bannerSchema = bannerFields.partial()
 
 export async function GET() {
   const auth = await requireApiUser(['STAFF', 'ADMIN'])
@@ -41,13 +27,17 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireApiUser(['STAFF', 'ADMIN'])
+  const auth = await requireApiUser(['STAFF', 'ADMIN'], 'content')
   if ('response' in auth) return auth.response
   const store = await getActiveStore()
   const parsed = bannerSchema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: 'invalid_input', issues: parsed.error.flatten() }, { status: 400 })
 
-  const banner = await prisma.siteBanner.create({ data: { storeId: store.id, ...parsed.data } })
+  const data = { name: '', placement: 'CATALOG' as const, isActive: false, ...parsed.data }
+  if (!data.name) return NextResponse.json({ error: 'name_required' }, { status: 400 })
+  const error = await validateBanner(store.id, data)
+  if (error) return NextResponse.json({ error }, { status: 400 })
+  const banner = await prisma.siteBanner.create({ data: { storeId: store.id, ...data } })
   invalidateContentCache(store.id)
   return NextResponse.json({ id: banner.id }, { status: 201 })
 }

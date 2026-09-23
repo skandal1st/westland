@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db'
-import { priceVariantsInContext } from '@/lib/pricing'
+import type { Prisma } from '@prisma/client'
+import { priceVariantsInContext, type ResolvedPrice } from '@/lib/pricing'
 import { availabilityForVariants } from '@/lib/pricing/availability'
 import { loadStoreProfile } from '@/lib/store-profile'
 
@@ -11,14 +12,15 @@ export type CatalogItem = {
   description: string
   imageUrls: string[]
   sku: string | null
+  sourceSku?: string | null
   packaging: string | null
   categoryId: string | null
   brandId: string | null
-  price: { amount: number; currency: string } | null
+  price: ResolvedPrice | null
   availability: { available: number; stale: boolean } | null
 }
 
-const defaultVariant = { where: { isDefault: true }, take: 1, orderBy: { sortOrder: 'asc' } } as const
+const defaultVariant = { where: { isDefault: true, status: 'ACTIVE' }, take: 1, orderBy: { sortOrder: 'asc' } } as const
 const STALE_AFTER_MS = 1000 * 60 * 60 * 24 // 24h
 
 type ProductRow = {
@@ -27,7 +29,7 @@ type ProductRow = {
   brandId: string | null
   canonicalName: string
   content: { slug: string; displayName: string; description: string; imageUrls: string[] } | null
-  variants: { id: string; sku: string; packaging: string }[]
+  variants: { id: string; sku: string; sourceSku: string | null; packaging: string }[]
 }
 
 function toItem(product: ProductRow): CatalogItem | null {
@@ -41,6 +43,7 @@ function toItem(product: ProductRow): CatalogItem | null {
     description: product.content.description,
     imageUrls: product.content.imageUrls,
     sku: variant?.sku ?? null,
+    sourceSku: variant?.sourceSku ?? null,
     packaging: variant?.packaging ?? null,
     categoryId: product.categoryId,
     brandId: product.brandId,
@@ -55,6 +58,31 @@ function toItem(product: ProductRow): CatalogItem | null {
  * channel projection). Price/availability come from projections/entries — never
  * a synchronous provider call.
  */
+export type CatalogFilters = { storeId: string; categorySlug?: string | null; brandSlug?: string | null; query?: string | null }
+export function catalogWhere(input: CatalogFilters): Prisma.ProductWhereInput {
+  // Search text is literal, including SQL LIKE metacharacters in supplier SKUs.
+  const query = input.query?.trim().replace(/[\\%_]/g, '\\$&')
+  return {
+    storeId: input.storeId,
+    status: 'ACTIVE' as const,
+    content: { isNot: null },
+    AND: [
+      // Products in a hidden category are excluded from the storefront entirely.
+      { OR: [{ categoryId: null }, { category: { is: { hidden: false } } }] },
+      ...(input.categorySlug ? [{ category: { is: { slug: input.categorySlug } } }] : []),
+      ...(input.brandSlug ? [{ brand: { is: { slug: input.brandSlug } } }] : []),
+      ...(query ? [{ OR: [
+        { canonicalName: { contains: query, mode: 'insensitive' as const } },
+        { content: { is: { displayName: { contains: query, mode: 'insensitive' as const } } } },
+        { variants: { some: { isDefault: true, status: 'ACTIVE' as const, OR: [
+          { sku: { contains: query, mode: 'insensitive' as const } },
+          { sourceSku: { contains: query, mode: 'insensitive' as const } },
+        ] } } },
+      ] }] : []),
+    ],
+  }
+}
+
 export async function listCatalog(input: {
   storeId: string
   take?: number
@@ -63,26 +91,22 @@ export async function listCatalog(input: {
   channelId?: string | null
   categorySlug?: string | null
   brandSlug?: string | null
+  query?: string | null
   date?: Date
 }): Promise<{ items: CatalogItem[]; total: number }> {
   const take = Math.min(Math.max(input.take ?? 50, 1), 100)
   const skip = Math.max(input.skip ?? 0, 0)
-  const where = {
-    storeId: input.storeId,
-    status: 'ACTIVE' as const,
-    ...(input.categorySlug ? { category: { slug: input.categorySlug } } : {}),
-    ...(input.brandSlug ? { brand: { slug: input.brandSlug } } : {}),
-  }
+  const where = catalogWhere(input)
   const [rows, total] = await Promise.all([
     prisma.product.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take,
       skip,
       select: {
         id: true, categoryId: true, brandId: true, canonicalName: true,
         content: { select: { slug: true, displayName: true, description: true, imageUrls: true } },
-        variants: { ...defaultVariant, select: { id: true, sku: true, packaging: true } },
+        variants: { ...defaultVariant, select: { id: true, sku: true, sourceSku: true, packaging: true } },
       },
     }),
     prisma.product.count({ where }),
@@ -99,7 +123,7 @@ export async function listCatalog(input: {
     if (!item.variantId) continue
     item.price = prices.get(item.variantId) ?? null
     const a = availability.get(item.variantId)
-    if (a) item.availability = { available: a.available, stale: a.sourceUpdatedAt ? now - a.sourceUpdatedAt.getTime() > STALE_AFTER_MS : false }
+    if (a) item.availability = { available: a.available, stale: a.sourceUpdatedAt ? now - a.sourceUpdatedAt.getTime() > STALE_AFTER_MS || a.sourceUpdatedAt.getTime() > now : true }
   }
 
   return { items, total }
@@ -119,12 +143,12 @@ export async function listCatalogNav(storeId: string): Promise<CatalogNav> {
   const hasStorefrontProduct = { some: { status: 'ACTIVE' as const, content: { isNot: null } } }
   const [categories, brands] = await Promise.all([
     prisma.category.findMany({
-      where: { storeId, products: hasStorefrontProduct },
+      where: { storeId, hidden: false, products: hasStorefrontProduct },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
       select: { name: true, slug: true },
     }),
     prisma.brand.findMany({
-      where: { storeId, products: hasStorefrontProduct },
+      where: { storeId, products: { some: { status: 'ACTIVE', content: { isNot: null }, OR: [{ categoryId: null }, { category: { hidden: false } }] } } },
       orderBy: { name: 'asc' },
       select: { name: true, slug: true },
     }),
@@ -140,11 +164,27 @@ export async function getProductBySlug(storeId: string, slug: string): Promise<C
       product: {
         select: {
           id: true, categoryId: true, brandId: true, canonicalName: true, status: true,
-          variants: { ...defaultVariant, select: { id: true, sku: true, packaging: true } },
+          variants: { ...defaultVariant, select: { id: true, sku: true, sourceSku: true, packaging: true } },
         },
       },
     },
   })
   if (!content || content.product.status !== 'ACTIVE') return null
   return toItem({ ...content.product, content })
+}
+
+export type CatalogFacet = { name: string; slug: string; count: number }
+export async function catalogFacets(input: CatalogFilters) {
+  const [categoryCounts,brandCounts] = await Promise.all([
+    prisma.product.groupBy({ by:['categoryId'], where:catalogWhere({...input,categorySlug:undefined}), _count:{_all:true} }),
+    prisma.product.groupBy({ by:['brandId'], where:catalogWhere({...input,brandSlug:undefined}), _count:{_all:true} }),
+  ])
+  const [categories,brands,category,brand] = await Promise.all([
+    prisma.category.findMany({where:{storeId:input.storeId,id:{in:categoryCounts.flatMap(c=>c.categoryId?[c.categoryId]:[])}},orderBy:[{sortOrder:'asc'},{name:'asc'}],select:{id:true,name:true,slug:true}}),
+    prisma.brand.findMany({where:{storeId:input.storeId,id:{in:brandCounts.flatMap(b=>b.brandId?[b.brandId]:[])}},orderBy:{name:'asc'},select:{id:true,name:true,slug:true}}),
+    input.categorySlug?prisma.category.findFirst({where:{storeId:input.storeId,slug:input.categorySlug,hidden:false,mergedIntoId:null},select:{name:true,slug:true}}):null,
+    input.brandSlug?prisma.brand.findFirst({where:{storeId:input.storeId,slug:input.brandSlug},select:{name:true,slug:true}}):null,
+  ])
+  const cc=new Map(categoryCounts.map(c=>[c.categoryId,c._count._all])),bc=new Map(brandCounts.map(b=>[b.brandId,b._count._all]))
+  return {categories:categories.map(c=>({name:c.name,slug:c.slug,count:cc.get(c.id)??0})),brands:brands.map(b=>({name:b.name,slug:b.slug,count:bc.get(b.id)??0})),category,brand}
 }

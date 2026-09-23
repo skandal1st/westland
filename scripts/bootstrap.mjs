@@ -24,6 +24,7 @@ import { pathToFileURL } from 'node:url'
  * @param {import('@prisma/client').PrismaClient} prisma
  * @param {{
  *   store: { code: string, name: string },
+ *   preserveExisting?: boolean,
  *   settings?: { registration?: 'manual'|'auto', requireAgeConfirmation?: boolean, catalogRequiresAuth?: boolean, invoicePrefix?: string },
  *   admin: { email: string, name?: string, password: string },
  * }} input
@@ -40,13 +41,13 @@ export async function bootstrap(prisma, input) {
 
   const store = await prisma.store.upsert({
     where: { slug: input.store.code },
-    update: { name: input.store.name },
+    update: input.preserveExisting ? {} : { name: input.store.name },
     create: { slug: input.store.code, name: input.store.name },
   })
 
   await prisma.appSettings.upsert({
     where: { storeId: store.id },
-    update: { registrationMode, requireAgeConfirmation, catalogRequiresAuth, invoicePrefix },
+    update: input.preserveExisting ? {} : { registrationMode, requireAgeConfirmation, catalogRequiresAuth, invoicePrefix },
     create: { storeId: store.id, registrationMode, requireAgeConfirmation, catalogRequiresAuth, invoicePrefix },
   })
 
@@ -89,6 +90,7 @@ async function main() {
   try {
     const result = await bootstrap(prisma, {
       store: { code: dp.store?.code, name: dp.store?.name },
+      preserveExisting: process.argv.includes('--create-only'),
       settings: {
         registration: rt.registration,
         requireAgeConfirmation: rt.requireAgeConfirmation,

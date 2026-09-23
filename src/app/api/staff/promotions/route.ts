@@ -47,7 +47,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireApiUser(['STAFF', 'ADMIN'])
+  const auth = await requireApiUser(['STAFF', 'ADMIN'], 'promotions')
   if ('response' in auth) return auth.response
   const store = await getActiveStore()
   const parsed = promotionSchema.safeParse(await request.json().catch(() => null))

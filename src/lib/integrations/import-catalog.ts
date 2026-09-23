@@ -1,7 +1,11 @@
+import { assertCapability } from '@/lib/capabilities'
+import { ImportExecutionError } from './import-result'
 import type { PrismaClient } from '@prisma/client'
 import { prisma as defaultPrisma } from '@/lib/db'
 import { applyProductSnapshot } from '@/lib/catalog/import'
 import { fingerprint, normalizeProductSnapshot } from '@/lib/catalog/normalize'
+import { IntegrationInputError as ExchangeError } from '@/lib/integrations/errors'
+import { importSourceCatalog } from './source-import'
 import type { OperationalProvider } from '@/lib/integrations/provider'
 
 const ENTITY = 'product'
@@ -22,73 +26,85 @@ export type ImportStats = { pages: number; imported: number; skipped: number; fa
  *   the checkpoint is durable.
  */
 export async function importCatalog(
-  input: { storeId: string; connectionId: string; provider: OperationalProvider },
+  input: { storeId: string; connectionId: string; generationId?: string; jobId?: string; provider: OperationalProvider },
   client: PrismaClient = defaultPrisma,
 ): Promise<ImportStats> {
+  assertCapability('commerce-core')
+
   const { storeId, connectionId, provider } = input
 
+  const generationId = input.generationId ?? null
+  if (provider.provider === 'ONE_C' && (!generationId || provider.generationId !== generationId || provider.sourceId !== connectionId)) throw new ExchangeError('import_generation_mismatch')
+  if (provider.provider === 'ONE_C') return importSourceCatalog(input, client)
   let checkpoint = await client.syncCheckpoint.upsert({
     where: { connectionId_entityType: { connectionId, entityType: ENTITY } },
     update: {},
-    create: { connectionId, entityType: ENTITY },
+    create: { connectionId, entityType: ENTITY, generationId },
   })
 
+  if (checkpoint.generationId !== generationId && !checkpoint.completed) throw new ExchangeError('checkpoint_generation_mismatch')
+
   // A completed checkpoint means the previous full sync finished — start fresh.
-  if (checkpoint.completed) {
+  if (checkpoint.completed || checkpoint.failed > 0) {
     checkpoint = await client.syncCheckpoint.update({
       where: { id: checkpoint.id },
-      data: { cursor: null, page: 0, processed: 0, completed: false, lastExternalId: null },
+      data: { generationId, cursor: null, page: 0, processed: 0, failed: 0, completed: false, lastExternalId: null },
     })
   }
 
   let cursor = checkpoint.cursor ?? undefined
   let page = checkpoint.page
   let processed = checkpoint.processed
+  const previouslyProcessed = checkpoint.processed
   const stats: ImportStats = { pages: 0, imported: 0, skipped: 0, failed: 0 }
 
-  for (;;) {
-    const result = await provider.pullProducts(cursor) // provider outage -> throws -> job retried
-    let lastExternalId: string | null = checkpoint.lastExternalId
+  try {
+    for (;;) {
+      const result = await provider.pullProducts(cursor) // provider outage -> throws -> job retried
+      let lastExternalId: string | null = checkpoint.lastExternalId
 
-    for (const item of result.items) {
-      try {
-        const normalized = normalizeProductSnapshot(item)
-        const fp = fingerprint(item)
-        const existing = await client.inbox.findUnique({
-          where: { connectionId_entityType_externalId: { connectionId, entityType: ENTITY, externalId: normalized.externalId } },
-        })
-        if (existing && existing.fingerprint === fp) {
-          stats.skipped += 1
-        } else {
-          await applyProductSnapshot({ storeId, connectionId, payload: item }, client)
-          await client.inbox.upsert({
+      for (const item of result.items) {
+        try {
+          const normalized = normalizeProductSnapshot(item)
+          const fp = fingerprint(item)
+          const existing = await client.inbox.findUnique({
             where: { connectionId_entityType_externalId: { connectionId, entityType: ENTITY, externalId: normalized.externalId } },
-            update: { fingerprint: fp, status: 'PROCESSED' },
-            create: { storeId, connectionId, entityType: ENTITY, externalId: normalized.externalId, fingerprint: fp, status: 'PROCESSED' },
           })
-          stats.imported += 1
+          if (existing && existing.fingerprint === fp) {
+            stats.skipped += 1
+          } else {
+            await applyProductSnapshot({ storeId, connectionId, payload: item }, client)
+            await client.inbox.upsert({
+              where: { connectionId_entityType_externalId: { connectionId, entityType: ENTITY, externalId: normalized.externalId } },
+              update: { fingerprint: fp, status: 'PROCESSED' },
+              create: { storeId, connectionId, entityType: ENTITY, externalId: normalized.externalId, fingerprint: fp, status: 'PROCESSED' },
+            })
+            stats.imported += 1
+          }
+          lastExternalId = normalized.externalId
+          processed += 1
+        } catch (error) {
+          // Partial-page tolerance: log the bad item and keep going.
+          stats.failed += 1
+          try {
+            await client.integrationError.create({
+              data: { storeId, connectionId, jobId: input.jobId, code: 'ITEM_IMPORT_FAILED', message: (error as Error).message, context: safeContext(item) },
+            })
+          } catch { throw error }
         }
-        lastExternalId = normalized.externalId
-        processed += 1
-      } catch (error) {
-        // Partial-page tolerance: log the bad item and keep going.
-        stats.failed += 1
-        await client.integrationError.create({
-          data: { storeId, connectionId, code: 'ITEM_IMPORT_FAILED', message: (error as Error).message, context: safeContext(item) },
-        })
       }
+
+      cursor = result.nextCursor
+      page += 1
+      stats.pages += 1
+      checkpoint = await client.syncCheckpoint.update({
+        where: { id: checkpoint.id },
+        data: { cursor: cursor ?? null, page, processed, lastExternalId, failed: stats.failed, completed: !cursor && stats.failed === 0 },
+      })
+      if (!cursor) break
     }
 
-    cursor = result.nextCursor
-    page += 1
-    stats.pages += 1
-    checkpoint = await client.syncCheckpoint.update({
-      where: { id: checkpoint.id },
-      data: { cursor: cursor ?? null, page, processed, lastExternalId, completed: !cursor },
-    })
-    if (!cursor) break
-  }
-
+  } catch (error) { throw new ImportExecutionError(error, { ...stats, previouslyProcessed }) }
   return stats
 }
 

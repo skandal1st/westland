@@ -34,13 +34,17 @@ const schema = z.discriminatedUnion('kind', [
 ])
 
 export async function POST(request: Request) {
-  const auth = await requireApiUser(['ADMIN'])
+  const auth = await requireApiUser(['ADMIN'], 'commerce-core')
   if ('response' in auth) return auth.response
   const store = await getActiveStore()
 
   const parsed = schema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: 'invalid_input', issues: parsed.error.flatten() }, { status: 400 })
   const data = parsed.data
+  if (data.kind === 'priceGroup') {
+    const b2b = await requireApiUser(['ADMIN'], 'commerce-b2b')
+    if ('response' in b2b) return b2b.response
+  }
 
   if (data.kind === 'location') return NextResponse.json({ id: (await createInventoryLocation({ storeId: store.id, code: data.code, name: data.name })).id }, { status: 201 })
   if (data.kind === 'priceBook') return NextResponse.json({ id: (await createPriceBook({ storeId: store.id, code: data.code, name: data.name, currency: data.currency, isDefault: data.isDefault })).id }, { status: 201 })

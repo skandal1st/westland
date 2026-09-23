@@ -17,7 +17,7 @@ const patchSchema = z.object({
 })
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
-  const auth = await requireApiUser(['STAFF', 'ADMIN'])
+  const auth = await requireApiUser(['STAFF', 'ADMIN'], 'content')
   if ('response' in auth) return auth.response
   const store = await getActiveStore()
   const existing = await prisma.contentBlock.findFirst({ where: { id: params.id, storeId: store.id }, select: { id: true } })
@@ -33,7 +33,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 }
 
 export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
-  const auth = await requireApiUser(['STAFF', 'ADMIN'])
+  const auth = await requireApiUser(['STAFF', 'ADMIN'], 'content')
   if ('response' in auth) return auth.response
   const store = await getActiveStore()
   const existing = await prisma.contentBlock.findFirst({ where: { id: params.id, storeId: store.id }, select: { id: true } })

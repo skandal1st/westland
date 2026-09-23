@@ -1,3 +1,4 @@
+import { assertCapability } from '@/lib/capabilities'
 import { prisma } from '@/lib/db'
 import { AuditAction, recordAudit } from '@/lib/audit'
 import type { SessionUser } from '@/lib/authz'
@@ -28,6 +29,8 @@ export async function updateProductContent(
   patch: ContentPatch,
   options: { actor: SessionUser | null },
 ) {
+  assertCapability('content')
+
   return prisma.$transaction(async (tx) => {
     const content = await tx.commerceProductContent.findUnique({ where: { productId } })
     if (!content) throw new ContentError('NOT_FOUND')

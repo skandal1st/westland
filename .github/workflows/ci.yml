@@ -1,4 +1,4 @@
-name: CI
+name: CI (fixture-free checks, not release acceptance)
 
 on:
   push:
@@ -12,15 +12,16 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_USER: westside
-          POSTGRES_PASSWORD: westside
-          POSTGRES_DB: westside
-        ports: ['5432:5432']
+          POSTGRES_USER: axima_test
+          POSTGRES_PASSWORD: axima_test_local_only
+          POSTGRES_DB: axima_commerce_test
+        ports: ['55432:5432']
         options: >-
-          --health-cmd "pg_isready -U westside -d westside"
+          --health-cmd "pg_isready -U axima_test -d axima_commerce_test"
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
-      DATABASE_URL: postgresql://westside:westside@localhost:5432/westside
+      AXIMA_TEST_DATABASE: '1'
+      DATABASE_URL: postgresql://axima_test:axima_test_local_only@127.0.0.1:55432/axima_commerce_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -29,10 +30,31 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx prisma generate
+      - run: npm run test:release-checks
+      - run: npm run test:deployment
       - run: npm run check:boundaries
       - run: npm run typecheck
       - run: npm run lint
-      - run: npm run test
+      - run: npm run test -- --reporter=json --outputFile=unit-results.json
+      - run: node scripts/assert-test-report.mjs unit-results.json
+      - run: npm run worker:build
       - run: npm run test:int:setup
-      - run: npm run test:integration
+      # Customer snapshot is not committed or downloaded by PR CI.
+      # Full replay is mandatory in npm run check:release on the authorized local copy.
+      - name: Integration without private snapshot (not release gate)
+        run: >-
+          npm run test:integration --
+          --exclude tests/integration/onec-r16-replay.test.ts
+          --exclude tests/integration/onec-r16-6-acceptance.test.ts
+          --exclude tests/integration/legacy-ownership-replay.test.ts
+          --reporter=json --outputFile=integration-results.json
+      - run: node scripts/assert-test-report.mjs integration-results.json
       - run: npm run build
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fixture-free-test-results
+          path: |
+            unit-results.json
+            integration-results.json
+          if-no-files-found: warn

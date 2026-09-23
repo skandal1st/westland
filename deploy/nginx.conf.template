@@ -21,9 +21,11 @@ server {
         proxy_set_header Connection "upgrade";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        # Single trusted ingress: discard client-supplied forwarding headers.
+        proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 60s;
+        # Long enough for a full 1C catalog import triggered from the backoffice.
+        proxy_read_timeout 900s;
     }
 
     location = /api/health {

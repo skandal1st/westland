@@ -18,7 +18,9 @@ export type NormalizedProduct = {
   sku: string
   canonicalName: string
   categoryExternalId?: string
+  categoryName?: string
   brandExternalId?: string
+  brandName?: string
   packaging?: string
   unitsPerPack?: number
   identifiers: NormalizedIdentifier[]
@@ -73,7 +75,9 @@ export function normalizeProductSnapshot(payload: unknown): NormalizedProduct {
     sku,
     canonicalName,
     categoryExternalId: str(raw.categoryExternalId) || undefined,
+    categoryName: str(raw.categoryName) || undefined,
     brandExternalId: str(raw.brandExternalId) || undefined,
+    brandName: str(raw.brandName) || undefined,
     packaging: str(raw.packaging) || undefined,
     unitsPerPack: Number.isFinite(raw.unitsPerPack) ? Number(raw.unitsPerPack) : undefined,
     identifiers,

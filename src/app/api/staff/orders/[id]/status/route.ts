@@ -1,3 +1,5 @@
+import { CapabilityError } from '@/lib/capabilities'
+import { LicenseError } from '@/lib/license'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireApiUser } from '@/lib/authz'
@@ -7,7 +9,7 @@ import { transitionOrder, OrderError } from '@/lib/orders/orders'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const schema = z.object({ to: z.enum(['SUBMITTED', 'CONFIRMED', 'PROCESSING', 'COMPLETED', 'CANCELLED']) })
+const schema = z.object({ to: z.enum(['CONFIRMED', 'PROCESSING', 'COMPLETED', 'CANCELLED']), expectedStatus: z.enum(['DRAFT', 'SUBMITTED', 'CONFIRMED', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'PLACED', 'REJECTED', 'REVIEW_REQUIRED']) }).strict()
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const auth = await requireApiUser(['STAFF', 'ADMIN'])
@@ -18,9 +20,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if (!parsed.success) return NextResponse.json({ error: 'invalid_input' }, { status: 400 })
 
   try {
-    const order = await transitionOrder({ storeId: store.id, orderId: params.id, to: parsed.data.to, actor: auth.user })
+    const order = await transitionOrder({ storeId: store.id, orderId: params.id, to: parsed.data.to, expectedStatus: parsed.data.expectedStatus, actor: auth.user })
     return NextResponse.json({ status: order.status })
   } catch (error) {
+    if (error instanceof LicenseError || error instanceof CapabilityError) return NextResponse.json({ error: error.message }, { status: 403 })
     if (error instanceof OrderError) return NextResponse.json({ error: error.code }, { status: error.code === 'NOT_FOUND' ? 404 : 409 })
     throw error
   }

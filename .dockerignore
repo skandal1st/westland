@@ -9,3 +9,8 @@ public/uploads
 **/*.test.ts
 .env
 .env.local
+backups
+
+dist
+.media
+exchange

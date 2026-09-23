@@ -35,7 +35,7 @@ export function LicensePanel() {
     try {
       const response = await fetch('/api/staff/license/reload', { method: 'POST' })
       if (response.ok) { await load(); setMessage('Лицензия перечитана с диска.') }
-      else setMessage('Требуется роль ADMIN.')
+      else setMessage('Требуется роль администратора.')
     } finally { setBusy(false) }
   }
 

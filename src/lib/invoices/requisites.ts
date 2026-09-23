@@ -91,12 +91,26 @@ export function resolveSellerRequisites(input: {
   channelInvoiceProfile: unknown
   storeSellerRequisites: unknown
 }): SellerRequisites | null {
-  const base = asRecord(input.channelSellerLegalEntity) ?? asRecord(input.storeSellerRequisites) ?? {}
-  const overlay = asRecord(input.channelInvoiceProfile) ?? {}
+  const base = input.channelSellerLegalEntity == null
+    ? asRecord(input.storeSellerRequisites) ?? {}
+    : asRecord(input.channelSellerLegalEntity) ?? {}
+  // Only these fields belong to a document profile. Legal identity and bank
+  // always come from the selected seller; legacy extra keys cannot override it.
+  const profile = asRecord(input.channelInvoiceProfile) ?? {}
+  const overlay = Object.fromEntries(['vatEnabled', 'vatRate', 'directorName', 'accountantName', 'paymentPurpose']
+    .filter(key => Object.prototype.hasOwnProperty.call(profile, key)).map(key => [key, profile[key]]))
   const parsed = SellerRequisitesSchema.safeParse({ ...base, ...overlay })
-  return parsed.success ? parsed.data : null
+  return parsed.success && parsed.data.companyName.trim() && parsed.data.inn.trim() ? parsed.data : null
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null
 }
+
+/** Bank transfer details are required at issue time, not while staff fills settings. */
+export const InvoiceBankSchema = z.object({
+  name: z.string().trim().min(1),
+  bik: z.string().trim().regex(/^\d{9}$/),
+  account: z.string().trim().regex(/^\d{20}$/),
+  corAccount: z.string().trim().regex(/^\d{20}$/),
+})

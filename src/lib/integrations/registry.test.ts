@@ -15,7 +15,13 @@ describe('getProvider', () => {
     expect((await provider.pullProducts()).items).toHaveLength(0)
   })
 
-  it('throws for a real provider with no configured transport', () => {
-    expect(() => getProvider({ provider: 'ONE_C', config: null } as any)).toThrow(ProviderNotConfiguredError)
+  it('builds the 1C provider (reads staged exchange files)', () => {
+    const provider = getProvider({ provider: 'ONE_C', config: null } as any)
+    expect(provider.provider).toBe('ONE_C')
+    expect(typeof provider.pullProducts).toBe('function')
+  })
+
+  it('throws for a provider whose transport is not configured yet', () => {
+    expect(() => getProvider({ provider: 'MOYSKLAD', config: null } as any)).toThrow(ProviderNotConfiguredError)
   })
 })

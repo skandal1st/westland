@@ -1,3 +1,4 @@
+import { assertCapability } from '@/lib/capabilities'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/db'
 import { getActiveStore } from '@/lib/store'
@@ -6,7 +7,7 @@ import { AuditAction, recordAudit } from '@/lib/audit'
 import type { SessionUser } from '@/lib/authz'
 
 export class RegistrationError extends Error {
-  constructor(public code: 'EMAIL_TAKEN' | 'ALREADY_PENDING' | 'INVALID_INN' | 'NOT_FOUND' | 'NOT_PENDING') {
+  constructor(public code: 'EMAIL_TAKEN' | 'ALREADY_PENDING' | 'INVALID_INN' | 'NOT_FOUND' | 'NOT_PENDING' | 'FORBIDDEN' | 'INVALID_DELIVERY' | 'REQUISITES_MISMATCH') {
     super(code)
     this.name = 'RegistrationError'
   }
@@ -28,6 +29,8 @@ export type RegistrationInput = {
  * or an outstanding pending request is rejected.
  */
 export async function createRegistrationRequest(input: RegistrationInput) {
+  assertCapability('commerce-b2b')
+
   const store = await getActiveStore()
   const email = input.email.trim().toLowerCase()
 
@@ -70,16 +73,27 @@ export async function createRegistrationRequest(input: RegistrationInput) {
  */
 export async function approveRegistration(
   requestId: string,
-  options: { actor: SessionUser | null; priceGroupId?: string },
+  options: { actor: SessionUser | null; priceGroupId?: string; locationIds?: string[] },
 ) {
+  assertCapability('commerce-b2b')
+
   return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "RegistrationRequest" WHERE id = ${requestId} FOR UPDATE`
     const request = await tx.registrationRequest.findUnique({ where: { id: requestId } })
     if (!request) throw new RegistrationError('NOT_FOUND')
     if (request.status !== 'PENDING') throw new RegistrationError('NOT_PENDING')
 
+    const pointIds = Array.from(new Set(options.locationIds ?? []))
+    if (pointIds.length > 200) throw new RegistrationError('INVALID_DELIVERY')
+    if (options.actor) {
+      if (options.actor.storeId !== request.storeId || !await tx.user.findFirst({ where: { id: options.actor.id, storeId: request.storeId, status: 'ACTIVE', role: { in: ['STAFF', 'ADMIN'] } } })) throw new RegistrationError('FORBIDDEN')
+    } else if (pointIds.length) throw new RegistrationError('FORBIDDEN')
+    const existing = await tx.customer.findUnique({ where: { storeId_inn: { storeId: request.storeId, inn: request.inn } } })
+    if (existing && (existing.kpp ?? '') !== (request.kpp ?? '')) throw new RegistrationError('REQUISITES_MISMATCH')
+    if (options.priceGroupId && !await tx.priceGroup.findFirst({ where: { id: options.priceGroupId, storeId: request.storeId } })) throw new RegistrationError('FORBIDDEN')
     const customer = await tx.customer.upsert({
       where: { storeId_inn: { storeId: request.storeId, inn: request.inn } },
-      update: { legalName: request.legalName, kpp: request.kpp },
+      update: {},
       create: {
         storeId: request.storeId,
         displayName: request.legalName,
@@ -89,6 +103,7 @@ export async function approveRegistration(
       },
     })
 
+    if (await tx.customerLocation.count({ where: { id: { in: pointIds }, customerId: customer.id, customer: { storeId: request.storeId } } }) !== pointIds.length) throw new RegistrationError('INVALID_DELIVERY')
     const user = await tx.user.create({
       data: {
         storeId: request.storeId,
@@ -99,10 +114,12 @@ export async function approveRegistration(
         name: request.contactName,
         phone: request.phone,
         role: 'BUYER',
+        deliveryPointsRestricted: true,
         status: 'ACTIVE',
       },
     })
 
+    if (pointIds.length) await tx.userDeliveryPointGrant.createMany({ data: pointIds.map(locationId => ({ userId: user.id, locationId, assignedById: options.actor!.id })) })
     const updated = await tx.registrationRequest.update({
       where: { id: request.id },
       data: {
@@ -130,7 +147,7 @@ export async function approveRegistration(
       targetType: 'RegistrationRequest',
       targetId: request.id,
       summary: `Approved ${request.email} (${request.legalName})`,
-      metadata: { userId: user.id, customerId: customer.id, priceGroupId: options.priceGroupId ?? null },
+      metadata: { userId: user.id, customerId: customer.id, priceGroupId: options.priceGroupId ?? null, locationIds: pointIds },
     })
 
     return updated

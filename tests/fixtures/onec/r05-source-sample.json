@@ -1,0 +1,155 @@
+{
+  "sourceFiles": [
+    {
+      "name": "offers0_1.xml",
+      "bytes": 20245131,
+      "sha256": "6b8b206dd03b47645e0230c66e6c9dba5a81c1c472ce7bfe82edcdfab8f652b9",
+      "products": 0,
+      "offers": 18020
+    },
+    {
+      "name": "import0_1.xml",
+      "bytes": 38926396,
+      "sha256": "061608fac9f0dfb6da3e214f557af0b545c139e292d241b6f752df9afb6d1f2e",
+      "products": 18020,
+      "offers": 0
+    }
+  ],
+  "samples": [
+    {
+      "externalId": "2af2fdfe-de90-11e9-ae81-10bf481ec26b",
+      "product": {
+        "name": "Табак для кальяна \"Дарксайд\" Кор А (Торпедо), 100 г",
+        "article": "DS819-A",
+        "barcode": "4680143574802",
+        "code": "00-00000075",
+        "vatRequisite": {}
+      },
+      "prices": [
+        {
+          "ИдТипаЦены": "a7cc060e-b2c5-11f1-a08f-00155d32a304",
+          "ЦенаЗаЕдиницу": "890",
+          "Валюта": "RUB",
+          "Единица": "PCE",
+          "Коэффициент": "1"
+        }
+      ],
+      "warehouses": {
+        "cd697691-836f-11eb-947a-00155d326872": "1",
+        "b1b1d5fb-9d14-11f0-a084-00155d32a104": "0",
+        "d24e713b-d5af-11ea-af75-9822eff88c58": "2",
+        "d24e713d-d5af-11ea-af75-9822eff88c58": "4",
+        "da5e35a9-e67f-11ed-b94a-3cecefa6a0b1": "1"
+      },
+      "aggregateQuantity": "8"
+    },
+    {
+      "externalId": "00bfba41-e04b-11e9-ad2d-10bf481ec26b",
+      "product": {
+        "name": "Duft 100гр Friend Cashew",
+        "article": "",
+        "barcode": "4605648021293",
+        "code": "00-00000319",
+        "vatRequisite": {}
+      },
+      "prices": [
+        {
+          "ИдТипаЦены": "a7cc060e-b2c5-11f1-a08f-00155d32a304",
+          "ЦенаЗаЕдиницу": "499",
+          "Валюта": "RUB",
+          "Единица": "PCE",
+          "Коэффициент": "1"
+        }
+      ],
+      "warehouses": {
+        "cd697691-836f-11eb-947a-00155d326872": "0",
+        "b1b1d5fb-9d14-11f0-a084-00155d32a104": "0",
+        "d24e713b-d5af-11ea-af75-9822eff88c58": "1",
+        "d24e713d-d5af-11ea-af75-9822eff88c58": "0",
+        "da5e35a9-e67f-11ed-b94a-3cecefa6a0b1": "0"
+      },
+      "aggregateQuantity": "1"
+    },
+    {
+      "externalId": "e68ebff0-82e9-11ea-8d8a-10bf481ec26b",
+      "product": {
+        "name": "ZOMO 50гр Banaboom",
+        "article": "",
+        "barcode": "4640100720420",
+        "code": "00-00001034",
+        "vatRequisite": {}
+      },
+      "prices": [
+        {
+          "ИдТипаЦены": "a7cc060e-b2c5-11f1-a08f-00155d32a304",
+          "ЦенаЗаЕдиницу": "90",
+          "Валюта": "RUB",
+          "Единица": "PCE",
+          "Коэффициент": "1"
+        }
+      ],
+      "warehouses": {
+        "cd697691-836f-11eb-947a-00155d326872": "0",
+        "b1b1d5fb-9d14-11f0-a084-00155d32a104": "0",
+        "d24e713b-d5af-11ea-af75-9822eff88c58": "0",
+        "d24e713d-d5af-11ea-af75-9822eff88c58": "0",
+        "da5e35a9-e67f-11ed-b94a-3cecefa6a0b1": "1"
+      },
+      "aggregateQuantity": "1"
+    },
+    {
+      "externalId": "76e81389-728b-11eb-829d-10bf481ec26b",
+      "product": {
+        "name": "Duft 25гр Brownie (Шоколадный десерт)",
+        "article": "",
+        "barcode": "4605648031940",
+        "code": "УТ-00000783",
+        "vatRequisite": {}
+      },
+      "prices": [
+        {
+          "ИдТипаЦены": "a7cc060e-b2c5-11f1-a08f-00155d32a304",
+          "ЦенаЗаЕдиницу": "185",
+          "Валюта": "RUB",
+          "Единица": "PCE",
+          "Коэффициент": "1"
+        }
+      ],
+      "warehouses": {
+        "cd697691-836f-11eb-947a-00155d326872": "0",
+        "b1b1d5fb-9d14-11f0-a084-00155d32a104": "0",
+        "d24e713b-d5af-11ea-af75-9822eff88c58": "0",
+        "d24e713d-d5af-11ea-af75-9822eff88c58": "0",
+        "da5e35a9-e67f-11ed-b94a-3cecefa6a0b1": "0"
+      },
+      "aggregateQuantity": "0"
+    },
+    {
+      "externalId": "cfae123a-413c-11ec-947f-00155d326872",
+      "product": {
+        "name": "1с ЭДО",
+        "article": "",
+        "barcode": null,
+        "code": "УТ-00002187",
+        "vatRequisite": {}
+      },
+      "prices": [
+        {
+          "ИдТипаЦены": "a7cc060e-b2c5-11f1-a08f-00155d32a304",
+          "ЦенаЗаЕдиницу": "0",
+          "Валюта": "RUB",
+          "Единица": "PCE",
+          "Коэффициент": "1"
+        }
+      ],
+      "warehouses": {
+        "cd697691-836f-11eb-947a-00155d326872": "0",
+        "b1b1d5fb-9d14-11f0-a084-00155d32a104": "0",
+        "d24e713b-d5af-11ea-af75-9822eff88c58": "1719",
+        "d24e713d-d5af-11ea-af75-9822eff88c58": "1",
+        "da5e35a9-e67f-11ed-b94a-3cecefa6a0b1": "0"
+      },
+      "aggregateQuantity": "1720"
+    }
+  ]
+}

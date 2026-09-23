@@ -17,6 +17,7 @@ export function createMockProvider(options: {
   healthy?: boolean
   failSubmitTimes?: number
   orderStatus?: string
+  customerMessage?: string
 }): OperationalProvider {
   const pageSize = Math.max(options.pageSize ?? 2, 1)
   const submitted = new Map<string, string>() // order.id -> externalId (idempotency)
@@ -52,7 +53,7 @@ export function createMockProvider(options: {
       return { externalId, acceptedAt: new Date() }
     },
     async getOrderStatus(_externalId: string) {
-      return { status: options.orderStatus ?? 'CONFIRMED' }
+      return { status: options.orderStatus ?? 'CONFIRMED', customerMessage: options.customerMessage }
     },
   }
 }

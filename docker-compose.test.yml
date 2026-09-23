@@ -1,0 +1,19 @@
+name: axima-commerce-test
+services:
+  postgres-test:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: axima_test
+      POSTGRES_PASSWORD: axima_test_local_only
+      POSTGRES_DB: axima_commerce_test
+    ports:
+      - '127.0.0.1:55432:5432'
+    volumes:
+      - test_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U axima_test -d axima_commerce_test']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+volumes:
+  test_postgres_data:

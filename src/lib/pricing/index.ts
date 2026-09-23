@@ -1,8 +1,9 @@
-import type { PrismaClient } from '@prisma/client'
+import { decimal, money } from '@/lib/money'
+import type { PrismaClient, Prisma } from '@prisma/client'
 import { prisma as defaultPrisma } from '@/lib/db'
-import { loadPromotionContext, resolvePromotedAmount } from '@/lib/pricing/promotions'
+import { loadPromotionContext, resolvePromotedAmountExact } from '@/lib/pricing/promotions'
 
-type Client = PrismaClient
+type Client = PrismaClient | Prisma.TransactionClient
 
 /**
  * Price is a function of context — never a single Product.price. The applicable
@@ -48,7 +49,7 @@ function withinWindow(entry: { effectiveFrom: Date | null; effectiveTo: Date | n
  * carries the pre-discount price and `promotionIds` the rules that fired. When
  * promotions are disabled or none matched, `amount === listAmount`.
  */
-export type ResolvedPrice = { amount: number; currency: string; listAmount?: number; promotionIds?: string[] }
+export type ResolvedPrice = { amount: number; amountExact: string; currency: string; listAmount?: number; listAmountExact?: string; promotionIds?: string[] }
 
 export async function resolveVariantPrice(
   input: { storeId: string; variantId: string; groupId?: string | null; channelId?: string | null; date?: Date; promotions?: boolean },
@@ -61,8 +62,8 @@ export async function resolveVariantPrice(
     include: { priceBook: { select: { currency: true } } },
   })
   const date = input.date ?? new Date()
-  if (!entry || !withinWindow(entry, date)) return null
-  const base: ResolvedPrice = { amount: Number(entry.amount), currency: entry.priceBook.currency }
+  if (!entry || !withinWindow(entry, date) || !decimal(entry.amount).greaterThan(0)) return null
+  const base: ResolvedPrice = { amount: Number(entry.amount), amountExact: money(entry.amount), currency: entry.priceBook.currency }
   if (!input.promotions) return base
   const { rules, targets } = await loadPromotionContext({ storeId: input.storeId, variantIds: [input.variantId] }, client)
   return applyPromotion(base, targets.get(input.variantId) ?? { variantId: input.variantId }, rules, date)
@@ -82,12 +83,12 @@ export async function priceVariantsInContext(
     where: { priceBookId: bookId, variantId: { in: input.variantIds } },
     include: { priceBook: { select: { currency: true } } },
   })
-  const priced = entries.filter((entry) => withinWindow(entry, date))
+  const priced = entries.filter((entry) => withinWindow(entry, date) && decimal(entry.amount).greaterThan(0))
   const context = input.promotions
     ? await loadPromotionContext({ storeId: input.storeId, variantIds: priced.map((e) => e.variantId) }, client)
     : null
   for (const entry of priced) {
-    const base: ResolvedPrice = { amount: Number(entry.amount), currency: entry.priceBook.currency }
+    const base: ResolvedPrice = { amount: Number(entry.amount), amountExact: money(entry.amount), currency: entry.priceBook.currency }
     result.set(
       entry.variantId,
       context ? applyPromotion(base, context.targets.get(entry.variantId) ?? { variantId: entry.variantId }, context.rules, date) : base,
@@ -99,10 +100,10 @@ export async function priceVariantsInContext(
 function applyPromotion(
   base: ResolvedPrice,
   target: { variantId: string; brandId?: string | null; categoryId?: string | null },
-  rules: Parameters<typeof resolvePromotedAmount>[2],
+  rules: Parameters<typeof resolvePromotedAmountExact>[2],
   date: Date,
 ): ResolvedPrice {
-  const promoted = resolvePromotedAmount(base, target, rules, date)
+  const promoted = resolvePromotedAmountExact({ amount: base.amountExact }, target, rules, date)
   if (promoted.promotionIds.length === 0) return base
-  return { amount: promoted.amount, currency: base.currency, listAmount: promoted.listAmount, promotionIds: promoted.promotionIds }
+  return { amount: Number(promoted.amount), amountExact: promoted.amount, currency: base.currency, listAmount: Number(promoted.listAmount), listAmountExact: promoted.listAmount, promotionIds: promoted.promotionIds }
 }

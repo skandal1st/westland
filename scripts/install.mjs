@@ -9,7 +9,7 @@ const args = process.argv.slice(2);
 const command = args[0];
 const option = (name) => { const index = args.indexOf(name); return index >= 0 ? args[index + 1] : undefined; };
 if (!['plan', 'apply'].includes(command)) {
-  console.error('Usage: npm run install:server -- <plan|apply> [--config install.config.json]');
+  console.error('Usage: npm run install:config -- <plan|apply> [--config install.config.json]');
   process.exit(1);
 }
 
@@ -67,7 +67,7 @@ atomicWrite(path.join(configDir, 'publisher-public.pem'), publisherPublicKey, 0o
 atomicWrite(path.join(configDir, 'store-profile.json'), `${JSON.stringify(publicProfile(config), null, 2)}\n`, 0o644);
 console.log(`Installation configuration written to ${outputDir}.`);
 console.log('License signature and installation binding verified locally.');
-console.log('Database migration, bootstrap and SMTP delivery tests are the next implementation slice.');
+console.log('Configuration helper complete. The supported deployment path is install.sh --image ID --config FILE (see DEPLOYMENT.md).');
 
 async function collectInteractive() {
   if (!process.stdin.isTTY) throw new Error('Interactive input requires a TTY; use --config');

@@ -1,5 +1,7 @@
+import { assertCapability } from '@/lib/capabilities'
 import type { PaymentMethod, PrismaClient, Prisma } from '@prisma/client'
 import { prisma as defaultPrisma } from '@/lib/db'
+import { projectChannelAvailability } from './availability'
 import { AuditAction, recordAudit } from '@/lib/audit'
 import type { SessionUser } from '@/lib/authz'
 
@@ -11,6 +13,8 @@ import type { SessionUser } from '@/lib/authz'
 type Client = PrismaClient
 
 export function createInventoryLocation(input: { storeId: string; code: string; name: string }, client: Client = defaultPrisma) {
+  assertCapability('commerce-core')
+
   return client.inventoryLocation.upsert({
     where: { storeId_code: { storeId: input.storeId, code: input.code } },
     update: { name: input.name },
@@ -19,6 +23,8 @@ export function createInventoryLocation(input: { storeId: string; code: string; 
 }
 
 export function createPriceBook(input: { storeId: string; code: string; name: string; currency?: string; isDefault?: boolean }, client: Client = defaultPrisma) {
+  assertCapability('commerce-core')
+
   return client.priceBook.upsert({
     where: { storeId_code: { storeId: input.storeId, code: input.code } },
     update: { name: input.name, currency: input.currency ?? undefined, isDefault: input.isDefault ?? undefined },
@@ -27,6 +33,8 @@ export function createPriceBook(input: { storeId: string; code: string; name: st
 }
 
 export function createPriceGroup(input: { storeId: string; code: string; name: string; priceBookId?: string; priority?: number }, client: Client = defaultPrisma) {
+  assertCapability('commerce-b2b')
+
   return client.priceGroup.upsert({
     where: { storeId_code: { storeId: input.storeId, code: input.code } },
     update: { name: input.name, priceBookId: input.priceBookId ?? undefined, priority: input.priority ?? undefined },
@@ -51,6 +59,8 @@ export async function upsertFulfillmentChannel(
   },
   client: Client = defaultPrisma,
 ) {
+  assertCapability('commerce-core')
+
   return client.$transaction(async (tx) => {
     const channel = await tx.fulfillmentChannel.upsert({
       where: { storeId_code: { storeId: input.storeId, code: input.code } },
@@ -67,6 +77,7 @@ export async function upsertFulfillmentChannel(
         isActive: input.isActive ?? true, sortOrder: input.sortOrder ?? 0,
       },
     })
+    await projectChannelAvailability(channel.id, tx)
     await recordAudit(tx, {
       storeId: input.storeId, actor: input.actor, action: AuditAction.FulfillmentChannelChanged,
       targetType: 'FulfillmentChannel', targetId: channel.id, summary: `Channel ${channel.code} configured`,

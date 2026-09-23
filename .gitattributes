@@ -10,3 +10,6 @@
 *.ico binary
 *.pdf binary
 *.zip binary
+
+# Applied migration checksums are byte-exact; preserve their original line endings.
+prisma/migrations/**/migration.sql -text

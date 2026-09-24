@@ -1,7 +1,7 @@
 'use client'
 
 import NextImage from 'next/image'
-import { Banknote, Boxes, Building2, Check, CircleUserRound, ClipboardList, Image as ImageIcon, PackageCheck, Settings, ShieldCheck, ShoppingBag, Tag, UserRoundCog, Users, X } from 'lucide-react'
+import { Banknote, BookOpenText, Boxes, Building2, Check, CircleUserRound, ClipboardList, Image as ImageIcon, PackageCheck, Settings, ShieldCheck, ShoppingBag, Tag, UserRoundCog, Users, X } from 'lucide-react'
 import { signOut, useSession } from 'next-auth/react'
 import { useCallback, useEffect, useState } from 'react'
 import { CatalogAdminPanel } from '@/components/CatalogAdminPanel'
@@ -18,6 +18,7 @@ import { OnecBrandGroupsPanel } from '@/components/OnecBrandGroupsPanel'
 import { BrandLogosPanel } from '@/components/BrandLogosPanel'
 import { CategoriesPanel } from '@/components/CategoriesPanel'
 import { StaffAccountsPanel } from '@/components/StaffAccountsPanel'
+import { StaffGuide } from '@/components/StaffGuide'
 import { useStoreProfile } from '@/lib/store-profile-context'
 
 type PendingRequest = {
@@ -75,7 +76,7 @@ export function StaffDashboard() {
 
   const navigation = [
     ['Заказы', ClipboardList], ['Модерация', Users], ['Каталог', Boxes], ['Клиенты', Building2], ['Сотрудники', UserRoundCog],
-    ['Ценовые группы', ShoppingBag], ['Контент', ImageIcon], ['Промотовары', Tag], ['Склады', Banknote], ['Интеграции', PackageCheck], ['Лицензия', ShieldCheck], ['Настройки', Settings],
+    ['Ценовые группы', ShoppingBag], ['Контент', ImageIcon], ['Промотовары', Tag], ['Склады', Banknote], ['Интеграции', PackageCheck], ['Лицензия', ShieldCheck], ['Настройки', Settings], ['Инструкция', BookOpenText],
   ] as const
   const pendingCount = registrations.length
 
@@ -155,6 +156,8 @@ export function StaffDashboard() {
         {section === 'Лицензия' ? <LicensePanel /> : null}
 
         {section === 'Настройки' ? <SettingsPanel /> : null}
+
+        {section === 'Инструкция' ? <StaffGuide /> : null}
       </section>
     </main>
   )

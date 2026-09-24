@@ -9,7 +9,6 @@ import { Suspense, useEffect, useRef, useState } from 'react'
 import { CatalogSearch } from '@/components/CatalogSearch'
 import { StorefrontContact } from '@/components/StorefrontContact'
 import { readArray, useRemoteResource } from '@/lib/use-remote-resource'
-import { PaletteSwitcher } from '@/components/PaletteSwitcher'
 import { useStoreProfile } from '@/lib/store-profile-context'
 import { useCart } from '@/lib/cart/cart-context'
 
@@ -51,7 +50,6 @@ export function StorefrontHeader() {
         </button>
         <Suspense fallback={null}><CatalogSearch className="search-box" onSearch={() => setMenuOpen(false)} /></Suspense>
         <div className="header-contact"><StorefrontContact /></div>
-        <PaletteSwitcher />
         <Link className="header-icon" href="/account/orders" aria-label="Мои заказы"><Package /></Link>
         <Link className="header-icon" href="/account/locations" aria-label="Личный кабинет"><UserRound /></Link>
         <button className="cart-button" onClick={() => setCartOpen(true)} aria-label="Открыть корзину">

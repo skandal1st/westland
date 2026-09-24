@@ -9,13 +9,13 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const schema = z.object({
-  displayName: z.string().min(1).optional(),
-  slug: z.string().min(1).regex(/^[a-zA-Z0-9Ѐ-ӿ-]+$/, 'Некорректный slug').optional(),
-  description: z.string().optional(),
+  displayName: z.string().trim().min(1).max(200).optional(),
+  slug: z.string().trim().min(1).max(200).regex(/^[a-zA-Z0-9Ѐ-ӿ-]+$/, 'Некорректный slug').optional(),
+  description: z.string().max(10_000).optional(),
   imageUrls: z.array(z.string().url()).optional(),
   seoTitle: z.string().nullable().optional(),
   seoDescription: z.string().nullable().optional(),
-  attributes: z.record(z.unknown()).optional(),
+  attributes: z.record(z.string().max(500)).refine(value => Object.keys(value).length <= 30 && Object.keys(value).every(key => key.trim().length > 0 && key.length <= 80), 'Некорректные характеристики').optional(),
 })
 
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
@@ -28,7 +28,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 
   try {
     const updated = await updateProductContent(params.id, parsed.data, { actor: auth.user })
-    return NextResponse.json({ content: { displayName: updated.displayName, slug: updated.slug, description: updated.description } })
+    return NextResponse.json({ content: { displayName: updated.displayName, slug: updated.slug, description: updated.description, attributes: updated.attributes } })
   } catch (error) {
     if (error instanceof LicenseError || error instanceof CapabilityError) return NextResponse.json({ error: error.message }, { status: 403 })
     if (error instanceof ContentError) {

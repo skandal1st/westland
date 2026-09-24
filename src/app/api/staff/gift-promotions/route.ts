@@ -5,13 +5,25 @@ import { requireApiUser } from '@/lib/authz'
 import { getActiveStore } from '@/lib/store'
 import { prisma } from '@/lib/db'
 import { giftRuleSchema, validateGiftRule } from '@/lib/promotions/gifts'
+import { validBannerImage } from '@/lib/content/assets'
 export const dynamic = 'force-dynamic'
-const schema = z.object({ id: z.string().optional(), name: z.string().trim().min(1).max(200), isActive: z.boolean(), startsAt: z.coerce.date().nullable(), endsAt: z.coerce.date().nullable(), rule: giftRuleSchema }).strict().refine(v => !v.startsAt || !v.endsAt || v.startsAt < v.endsAt)
+const schema = z.object({
+  id: z.string().optional(),
+  name: z.string().trim().min(1).max(200),
+  isActive: z.boolean(),
+  showOnHome: z.boolean().default(false),
+  homeImageUrl: z.string().max(500).refine(validBannerImage).nullable(),
+  homeDescription: z.string().trim().max(300).nullable(),
+  startsAt: z.coerce.date().nullable(),
+  endsAt: z.coerce.date().nullable(),
+  rule: giftRuleSchema,
+}).strict().refine(v => !v.startsAt || !v.endsAt || v.startsAt < v.endsAt)
 export async function GET() {
   const auth = await requireApiUser(['STAFF', 'ADMIN'])
   if ('response' in auth) return auth.response
   const store = await getActiveStore()
-  return NextResponse.json({ enabled: effectiveCapabilities().includes('promotions'), promotions: await prisma.giftPromotion.findMany({ where: { storeId: store.id }, orderBy: { createdAt: 'desc' } }) })
+  const promotions = await prisma.giftPromotion.findMany({ where: { storeId: store.id }, orderBy: { createdAt: 'desc' } })
+  return NextResponse.json({ enabled: effectiveCapabilities().includes('promotions'), promotions: promotions.map(promotion => ({ ...promotion, showOnHome: promotion.showOnHome === true })) })
 }
 export async function POST(request: Request) {
   const auth = await requireApiUser(['ADMIN'], 'promotions')

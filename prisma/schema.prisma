@@ -151,6 +151,7 @@ model AppSettings {
   defaultPriceGroupId    String?
   invoicePrefix          String           @default("WS")
   sellerRequisites       Json?
+  palette                String?
   updatedAt              DateTime         @updatedAt
 }
 
@@ -1347,8 +1348,12 @@ model GiftPromotion {
   isActive Boolean @default(false)
   startsAt DateTime?
   endsAt DateTime?
+  showOnHome Boolean?
+  homeImageUrl String?
+  homeDescription String?
   rule Json
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   @@index([storeId, isActive])
+  @@index([storeId, showOnHome, isActive])
 }

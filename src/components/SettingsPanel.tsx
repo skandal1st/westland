@@ -1,9 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { PaletteSwitcher } from '@/components/PaletteSwitcher'
 
 type Requisites = {
-  companyName?: string; inn?: string; kpp?: string; city?: string; legalAddress?: string
+  companyName?: string; inn?: string; ogrn?: string; kpp?: string; city?: string; legalAddress?: string
   phone?: string; email?: string
   bank?: { name?: string; bik?: string; account?: string; corAccount?: string }
   directorName?: string; accountantName?: string
@@ -11,14 +12,14 @@ type Requisites = {
 }
 
 type Form = {
-  companyName: string; inn: string; kpp: string; city: string; legalAddress: string; phone: string; email: string
+  companyName: string; inn: string; ogrn: string; kpp: string; city: string; legalAddress: string; phone: string; email: string
   bankName: string; bankBik: string; bankAccount: string; bankCor: string
   directorName: string; accountantName: string
   vatEnabled: boolean; vatRate: string; paymentPurpose: string
 }
 
 const empty: Form = {
-  companyName: '', inn: '', kpp: '', city: '', legalAddress: '', phone: '', email: '',
+  companyName: '', inn: '', ogrn: '', kpp: '', city: '', legalAddress: '', phone: '', email: '',
   bankName: '', bankBik: '', bankAccount: '', bankCor: '',
   directorName: '', accountantName: '', vatEnabled: false, vatRate: '', paymentPurpose: '',
 }
@@ -35,7 +36,7 @@ export function SettingsPanel() {
     if (!response.ok) return
     const q: Requisites = (await response.json()).requisites ?? {}
     setForm({
-      companyName: q.companyName ?? '', inn: q.inn ?? '', kpp: q.kpp ?? '', city: q.city ?? '',
+      companyName: q.companyName ?? '', inn: q.inn ?? '', ogrn: q.ogrn ?? '', kpp: q.kpp ?? '', city: q.city ?? '',
       legalAddress: q.legalAddress ?? '', phone: q.phone ?? '', email: q.email ?? '',
       bankName: q.bank?.name ?? '', bankBik: q.bank?.bik ?? '', bankAccount: q.bank?.account ?? '', bankCor: q.bank?.corAccount ?? '',
       directorName: q.directorName ?? '', accountantName: q.accountantName ?? '',
@@ -52,7 +53,7 @@ export function SettingsPanel() {
     setSaving(true)
     setMessage(null)
     const payload = {
-      companyName: form.companyName, inn: form.inn, kpp: form.kpp, city: form.city,
+      companyName: form.companyName, inn: form.inn, ogrn: form.ogrn, kpp: form.kpp, city: form.city,
       legalAddress: form.legalAddress, phone: form.phone, email: form.email,
       bank: { name: form.bankName, bik: form.bankBik, account: form.bankAccount, corAccount: form.bankCor },
       directorName: form.directorName, accountantName: form.accountantName,
@@ -69,6 +70,7 @@ export function SettingsPanel() {
   return (
     <div className="settings-panel">
       {message ? <p className="settings-message" role="status">{message}</p> : null}
+      <PaletteSwitcher />
       <form onSubmit={save}>
         <section>
           <h3>Реквизиты компании</h3>
@@ -76,6 +78,7 @@ export function SettingsPanel() {
           <div className="settings-grid">
             <label className="wide">Название компании<input value={form.companyName} onChange={set('companyName')} placeholder="ООО «Компания»" /></label>
             <label>ИНН<input value={form.inn} onChange={set('inn')} inputMode="numeric" /></label>
+            <label>ОГРН<input value={form.ogrn} onChange={set('ogrn')} inputMode="numeric" /></label>
             <label>КПП<input value={form.kpp} onChange={set('kpp')} inputMode="numeric" /></label>
             <label>Город<input value={form.city} onChange={set('city')} placeholder="Город продавца" /></label>
             <label>Телефон<input value={form.phone} onChange={set('phone')} type="tel" /></label>

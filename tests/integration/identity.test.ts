@@ -1,4 +1,4 @@
-import { listBuyerLocations, createBuyerLocation } from '@/lib/account/locations'
+import { listBuyerLocations, createBuyerLocation, createBuyerLocationForStaff } from '@/lib/account/locations'
 import { setBuyerDeliveryPoints } from '@/lib/account/location-access'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import fs from 'node:fs'
@@ -120,6 +120,11 @@ describe('moderated delivery points', () => {
     expect((await listBuyerLocations(buyer)).map(p => p.id)).toEqual([pointA.id])
     expect(await prisma.userDeliveryPointGrant.findUnique({ where: { userId_locationId: { userId: second.id, locationId: ownPoint.id } } })).toMatchObject({ origin: 'SELF_CREATED', assignedById: second.id })
     expect(ownPoint.isDefault).toBe(true)
+    const staffPoint = await createBuyerLocationForStaff(buyer.id, actor, { name: 'Manager branch', city: 'City', address: 'Manager street' })
+    expect((await listBuyerLocations(buyer)).map(point => point.id)).toEqual([pointA.id, staffPoint.id])
+    expect((await listBuyerLocations(second)).map(point => point.id)).toEqual([ownPoint.id])
+    expect(await prisma.userDeliveryPointGrant.findUnique({ where: { userId_locationId: { userId: buyer.id, locationId: staffPoint.id } } })).toMatchObject({ origin: 'MODERATOR', assignedById: actor.id })
+    expect(await prisma.auditEntry.count({ where: { storeId, targetId: staffPoint.id, action: 'StaffBuyerDeliveryPointCreated' } })).toBe(1)
     await setBuyerDeliveryPoints(buyer.id, [pointB.id], actor)
     expect((await listBuyerLocations(buyer)).map(p => p.id)).toEqual([pointB.id])
     await setBuyerDeliveryPoints(buyer.id, [], actor)
@@ -139,6 +144,7 @@ describe('moderated delivery points', () => {
     const buyer = await prisma.user.findUniqueOrThrow({ where: { storeId_email: { storeId, email: 'points@buyer.test' } } })
     await expect(setBuyerDeliveryPoints(buyer.id, [wrongPoint.id], actor)).rejects.toMatchObject({ code: 'INVALID_DELIVERY' })
     await expect(setBuyerDeliveryPoints(buyer.id, [], buyer)).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    await expect(createBuyerLocationForStaff(buyer.id, buyer, { name: 'Denied', city: 'City', address: 'Street' })).rejects.toMatchObject({ code: 'FORBIDDEN' })
     await expect(approveRegistration(request.id, { actor: null, locationIds: [wrongPoint.id] })).rejects.toMatchObject({ code: 'FORBIDDEN' })
     await expect(approveRegistration(request.id, { actor: buyer })).rejects.toMatchObject({ code: 'FORBIDDEN' })
     expect(await listBuyerLocations(buyer)).toEqual([])

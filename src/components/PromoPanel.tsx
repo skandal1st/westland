@@ -1,15 +1,16 @@
 'use client'
+/* eslint-disable @next/next/no-img-element -- Staff uploads are served from a validated local image endpoint. */
 import { useState } from 'react'
 import { useRemoteResource, readArray } from '@/lib/use-remote-resource'
 import type { GiftRule } from '@/lib/promotions/gifts'
 import { StaffProductPicker } from './StaffProductPicker'
-type Promotion = { id?: string; name: string; isActive: boolean; startsAt: string | null; endsAt: string | null; rule: GiftRule }
+type Promotion = { id?: string; name: string; isActive: boolean; showOnHome: boolean; homeImageUrl: string | null; homeDescription: string | null; startsAt: string | null; endsAt: string | null; rule: GiftRule }
 type Option = { id: string; name: string }
 const decode = (v: unknown) => ({ promotions: readArray<Promotion>(v, 'promotions'), enabled: (v as { enabled?: boolean }).enabled === true })
 const decodeBrands = (v: unknown) => readArray<Option>(v, 'brands')
 const decodeCategories = (v: unknown) => readArray<Option>(v, 'categories')
 const decodeCommerce = (v: unknown) => v as { channels: Option[]; priceGroups: Option[] }
-const blank = (): Promotion => ({ name: '', isActive: false, startsAt: null, endsAt: null, rule: { condition: {}, reward: {}, minQty: 20, rewardQty: 1, maxRewardQty: null, channelIds: [], priceGroupIds: [] } })
+const blank = (): Promotion => ({ name: '', isActive: false, showOnHome: false, homeImageUrl: null, homeDescription: null, startsAt: null, endsAt: null, rule: { condition: {}, reward: {}, minQty: 20, rewardQty: 1, maxRewardQty: null, channelIds: [], priceGroupIds: [] } })
 const localDate = (value: string | null) => { if (!value) return ''; const date = new Date(value); return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16) }
 export function PromoPanel() {
   const promos = useRemoteResource('/api/staff/gift-promotions', decode)
@@ -28,7 +29,7 @@ export function PromoPanel() {
   const save = async (p: Promotion) => {
     setBusy(true); setMessage('')
     try {
-      const response = await fetch('/api/staff/gift-promotions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: p.id, name: p.name, isActive: p.isActive, startsAt: p.startsAt, endsAt: p.endsAt, rule: p.rule }) })
+      const response = await fetch('/api/staff/gift-promotions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: p.id, name: p.name, isActive: p.isActive, showOnHome: p.showOnHome, homeImageUrl: p.homeImageUrl, homeDescription: p.homeDescription, startsAt: p.startsAt, endsAt: p.endsAt, rule: p.rule }) })
       if (!response.ok) throw new Error(response.status === 403 ? 'Изменение акций доступно администратору при включённом модуле промотоваров.' : 'Проверьте условие, награду, количества и даты акции.')
       setDraft(null); setMessage('Акция сохранена. Условия проверяются в корзине и при оформлении.'); await promos.reload()
     } catch (e) { setMessage(e instanceof Error ? e.message : 'Нет связи с сервером.') }
@@ -38,6 +39,17 @@ export function PromoPanel() {
     setBusy(true)
     try { const r = await fetch('/api/staff/gift-promotions?id=' + encodeURIComponent(id), { method: 'DELETE' }); if (!r.ok) throw new Error(); setRemoving(null); await promos.reload() }
     catch { setMessage('Не удалось удалить акцию. Повторите запрос.') } finally { setBusy(false) }
+  }
+  const uploadHomeImage = async (file: File | undefined) => {
+    if (!file) return
+    if (file.size > 8 * 1024 * 1024) { setMessage('Изображение должно быть не больше 8 МБ.'); return }
+    setBusy(true); setMessage('')
+    try {
+      const response = await fetch('/api/staff/gift-promotions/upload', { method: 'POST', headers: { 'content-type': file.type || 'application/octet-stream' }, body: file })
+      if (!response.ok) throw new Error('Не удалось загрузить изображение. Используйте JPG, PNG или WebP до 8 МБ.')
+      const result = await response.json(); patch({ homeImageUrl: result.url })
+    } catch (e) { setMessage(e instanceof Error ? e.message : 'Нет связи с сервером.') }
+    finally { setBusy(false) }
   }
   const describe = (f: GiftRule['condition']) => f.productId ? 'Выбранный товар' : [brands.data?.find(b => b.id === f.brandId)?.name, categories.data?.find(c => c.id === f.categoryId)?.name, f.packaging].filter(Boolean).join(' · ')
   return <div>
@@ -61,6 +73,14 @@ export function PromoPanel() {
           <label>{key === 'condition' ? 'За каждые, шт.' : 'Количество в подарок, шт.'}<input required type="number" min="1" max="100000" value={key === 'condition' ? draft.rule.minQty : draft.rule.rewardQty} onChange={e => rule(key === 'condition' ? { minQty: Number(e.target.value) } : { rewardQty: Number(e.target.value) })} /></label>
         </fieldset>)}
         <label>Максимум подарков в одной заявке · необязательно<input type="number" min="1" max="100000" value={draft.rule.maxRewardQty ?? ''} onChange={e => rule({ maxRewardQty: e.target.value ? Number(e.target.value) : null })} /></label>
+        <fieldset className="admin-merge"><legend>Баннер на главной</legend>
+          <label className="admin-check"><input type="checkbox" checked={draft.showOnHome} onChange={e => patch({ showOnHome: e.target.checked })} />Показывать на главной</label>
+          {draft.showOnHome ? <>
+            <label>Короткое описание · необязательно<textarea rows={3} maxLength={300} value={draft.homeDescription ?? ''} onChange={e => patch({ homeDescription: e.target.value || null })} /></label>
+            <label>Изображение баннера · JPG, PNG, WebP до 8 МБ<input type="file" accept="image/jpeg,image/png,image/webp" onChange={e => { void uploadHomeImage(e.target.files?.[0]); e.target.value = '' }} /></label>
+            {draft.homeImageUrl ? <><img className="admin-banner-preview" src={draft.homeImageUrl} alt="Предпросмотр баннера акции" /><button type="button" onClick={() => patch({ homeImageUrl: null })}>Удалить изображение</button></> : <small>Без изображения акция будет показана как фирменный текстовый баннер.</small>}
+          </> : null}
+        </fieldset>
         <fieldset className="admin-merge"><legend>Каналы и покупатели</legend><p>Без отметок акция действует во всех каналах и ценовых группах.</p>
           {commerce.data?.channels?.map(c => <label className="admin-check" key={c.id}><input type="checkbox" checked={draft.rule.channelIds.includes(c.id)} onChange={e => rule({ channelIds: e.target.checked ? [...draft.rule.channelIds, c.id] : draft.rule.channelIds.filter(id => id !== c.id) })} />{c.name}</label>)}
           {commerce.data?.priceGroups?.map(g => <label className="admin-check" key={g.id}><input type="checkbox" checked={draft.rule.priceGroupIds.includes(g.id)} onChange={e => rule({ priceGroupIds: e.target.checked ? [...draft.rule.priceGroupIds, g.id] : draft.rule.priceGroupIds.filter(id => id !== g.id) })} />Группа: {g.name}</label>)}
@@ -71,6 +91,6 @@ export function PromoPanel() {
       </fieldset>
     </form> : null}
     {promos.loading ? <p role="status">Загрузка акций…</p> : !promos.error && !promos.data?.promotions.length ? <p className="staff-placeholder">Акций пока нет. Добавьте условие покупки и промотовар.</p> : null}
-    {promos.data?.promotions.map(p => <article className="admin-promo-row" key={p.id}><div><strong>{p.name}</strong><p>{p.rule.minQty} шт. ({describe(p.rule.condition)}) → {p.rule.rewardQty} шт. ({describe(p.rule.reward)})</p><small>{p.isActive ? 'Включена' : 'Выключена'}{p.rule.maxRewardQty ? ' · Не больше ' + p.rule.maxRewardQty + ' подарков' : ''}</small></div><div className="admin-banner-actions"><button disabled={busy || !promos.data?.enabled} onClick={() => open(p)}>Редактировать</button><button disabled={busy || !promos.data?.enabled} onClick={() => save({ ...p, isActive: !p.isActive })}>{p.isActive ? 'Выключить' : 'Включить'}</button><button disabled={busy || !promos.data?.enabled} onClick={() => setRemoving(p.id!)}>Удалить</button></div>{removing === p.id ? <p>Удалить «{p.name}»? <button disabled={busy} onClick={() => remove(p.id!)}>Да, удалить</button> <button onClick={() => setRemoving(null)}>Отмена</button></p> : null}</article>)}
+    {promos.data?.promotions.map(p => <article className="admin-promo-row" key={p.id}><div><strong>{p.name}</strong><p>{p.rule.minQty} шт. ({describe(p.rule.condition)}) → {p.rule.rewardQty} шт. ({describe(p.rule.reward)})</p><small>{p.isActive ? 'Включена' : 'Выключена'}{p.showOnHome ? ' · На главной' : ''}{p.rule.maxRewardQty ? ' · Не больше ' + p.rule.maxRewardQty + ' подарков' : ''}</small></div><div className="admin-banner-actions"><button disabled={busy || !promos.data?.enabled} onClick={() => open(p)}>Редактировать</button><button disabled={busy || !promos.data?.enabled} onClick={() => save({ ...p, isActive: !p.isActive })}>{p.isActive ? 'Выключить' : 'Включить'}</button><button disabled={busy || !promos.data?.enabled} onClick={() => setRemoving(p.id!)}>Удалить</button></div>{removing === p.id ? <p>Удалить «{p.name}»? <button disabled={busy} onClick={() => remove(p.id!)}>Да, удалить</button> <button onClick={() => setRemoving(null)}>Отмена</button></p> : null}</article>)}
   </div>
 }

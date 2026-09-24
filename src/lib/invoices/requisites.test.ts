@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { resolveSellerRequisites } from '@/lib/invoices/requisites'
+import { resolveSellerRequisites, StoreRequisitesInputSchema } from '@/lib/invoices/requisites'
 
-const company = { companyName: 'ООО Продавец', inn: '7712345678' }
+const company = { companyName: 'ООО Продавец', inn: '7712345678', ogrn: '1027700132195' }
 
 describe('resolveSellerRequisites', () => {
   it('uses the channel seller legal entity when present', () => {
@@ -12,6 +12,7 @@ describe('resolveSellerRequisites', () => {
   it('falls back to store requisites when the channel has none', () => {
     const r = resolveSellerRequisites({ channelSellerLegalEntity: null, channelInvoiceProfile: null, storeSellerRequisites: company })
     expect(r?.inn).toBe('7712345678')
+    expect(r?.ogrn).toBe('1027700132195')
   })
 
   it('overlays the invoice profile (VAT / signatories) onto the base identity', () => {
@@ -29,6 +30,10 @@ describe('resolveSellerRequisites', () => {
     expect(resolveSellerRequisites({ channelSellerLegalEntity: null, channelInvoiceProfile: null, storeSellerRequisites: null })).toBeNull()
     expect(resolveSellerRequisites({ channelSellerLegalEntity: { companyName: 'X' }, channelInvoiceProfile: null, storeSellerRequisites: null })).toBeNull()
   })
+})
+
+it('accepts OGRN in incrementally filled store settings', () => {
+  expect(StoreRequisitesInputSchema.parse({ ogrn: '1027700132195' })).toEqual({ ogrn: '1027700132195' })
 })
 
 

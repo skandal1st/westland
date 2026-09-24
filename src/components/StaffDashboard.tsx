@@ -1,7 +1,7 @@
 'use client'
 
 import NextImage from 'next/image'
-import { Banknote, Boxes, Building2, Check, CircleUserRound, ClipboardList, Image as ImageIcon, PackageCheck, Settings, ShieldCheck, ShoppingBag, Tag, Users, X } from 'lucide-react'
+import { Banknote, Boxes, Building2, Check, CircleUserRound, ClipboardList, Image as ImageIcon, PackageCheck, Settings, ShieldCheck, ShoppingBag, Tag, UserRoundCog, Users, X } from 'lucide-react'
 import { signOut, useSession } from 'next-auth/react'
 import { useCallback, useEffect, useState } from 'react'
 import { CatalogAdminPanel } from '@/components/CatalogAdminPanel'
@@ -15,7 +15,9 @@ import { SettingsPanel } from '@/components/SettingsPanel'
 import { OnecExchangeStatus } from '@/components/OnecExchangeStatus'
 import { OnecWarehousesPanel } from '@/components/OnecWarehousesPanel'
 import { OnecBrandGroupsPanel } from '@/components/OnecBrandGroupsPanel'
+import { BrandLogosPanel } from '@/components/BrandLogosPanel'
 import { CategoriesPanel } from '@/components/CategoriesPanel'
+import { StaffAccountsPanel } from '@/components/StaffAccountsPanel'
 import { useStoreProfile } from '@/lib/store-profile-context'
 
 type PendingRequest = {
@@ -72,7 +74,7 @@ export function StaffDashboard() {
   }
 
   const navigation = [
-    ['Заказы', ClipboardList], ['Модерация', Users], ['Каталог', Boxes], ['Клиенты', Building2],
+    ['Заказы', ClipboardList], ['Модерация', Users], ['Каталог', Boxes], ['Клиенты', Building2], ['Сотрудники', UserRoundCog],
     ['Ценовые группы', ShoppingBag], ['Контент', ImageIcon], ['Промотовары', Tag], ['Склады', Banknote], ['Интеграции', PackageCheck], ['Лицензия', ShieldCheck], ['Настройки', Settings],
   ] as const
   const pendingCount = registrations.length
@@ -81,7 +83,7 @@ export function StaffDashboard() {
     <main className="staff-shell">
       <aside className="staff-nav">
         <div className="staff-brand"><NextImage src="/brand/westside-logo.png" alt={profile.identity.name} width={88} height={88} priority /><span>Панель управления</span></div>
-        {navigation.map(([label, Icon]) => <button key={label} className={section === label ? 'active' : ''} onClick={() => setSection(label)}><Icon />{label}{label === 'Модерация' && pendingCount > 0 ? <b>{pendingCount}</b> : null}</button>)}
+        {navigation.filter(([label]) => label !== 'Сотрудники' || session?.user?.role === 'ADMIN').map(([label, Icon]) => <button key={label} className={section === label ? 'active' : ''} onClick={() => setSection(label)}><Icon />{label}{label === 'Модерация' && pendingCount > 0 ? <b>{pendingCount}</b> : null}</button>)}
         <div className="staff-user"><CircleUserRound /><span>{session?.user?.name ?? 'Сотрудник'}<small>{session?.user?.email ?? ''}</small></span><button type="button" className="staff-signout" onClick={() => signOut({ callbackUrl: '/login' })}>Выйти</button></div>
       </aside>
       <section className="staff-content">
@@ -132,13 +134,15 @@ export function StaffDashboard() {
             }} onClick={() => setCatalogTab(tab)}>{tab}</button>)}
           </div>
           <div id="catalog-panel" role="tabpanel" aria-labelledby={'catalog-tab-' + ['Товары', 'Категории', 'Бренды'].indexOf(catalogTab)}>
-            {catalogTab === 'Товары' ? <CatalogAdminPanel /> : catalogTab === 'Категории' ? <CategoriesPanel /> : <OnecBrandGroupsPanel />}
+            {catalogTab === 'Товары' ? <CatalogAdminPanel /> : catalogTab === 'Категории' ? <CategoriesPanel /> : <><BrandLogosPanel /><OnecBrandGroupsPanel /></>}
           </div>
         </> : null}
 
         {section === 'Интеграции' ? <><OnecExchangeStatus /><OnecWarehousesPanel /><IntegrationsPanel /></> : null}
 
         {section === 'Клиенты' ? <CommercePanel view="customers" /> : null}
+
+        {section === 'Сотрудники' && session?.user?.role === 'ADMIN' ? <StaffAccountsPanel /> : null}
 
         {section === 'Ценовые группы' ? <CommercePanel view="pricing" /> : null}
 

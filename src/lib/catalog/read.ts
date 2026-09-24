@@ -12,6 +12,7 @@ export type CatalogItem = {
   displayName: string
   description: string
   imageUrls: string[]
+  attributes: { name: string; value: string }[]
   sku: string | null
   sourceSku?: string | null
   packaging: string | null
@@ -29,13 +30,16 @@ type ProductRow = {
   categoryId: string | null
   brandId: string | null
   canonicalName: string
-  content: { slug: string; displayName: string; description: string; imageUrls: string[] } | null
+  content: { slug: string; displayName: string; description: string; imageUrls: string[]; attributes: Prisma.JsonValue } | null
   variants: { id: string; sku: string; sourceSku: string | null; packaging: string }[]
 }
 
 function toItem(product: ProductRow): CatalogItem | null {
   if (!product.content) return null // canonical without overlay is not storefront-ready
   const variant = product.variants[0]
+  const attributes = product.content.attributes && !Array.isArray(product.content.attributes) && typeof product.content.attributes === 'object'
+    ? Object.entries(product.content.attributes).flatMap(([name, value]) => typeof value === 'string' ? [{ name, value }] : [])
+    : []
   return {
     productId: product.id,
     variantId: variant?.id ?? null,
@@ -43,6 +47,7 @@ function toItem(product: ProductRow): CatalogItem | null {
     displayName: product.content.displayName,
     description: product.content.description,
     imageUrls: product.content.imageUrls,
+    attributes,
     sku: variant?.sku ?? null,
     sourceSku: variant?.sourceSku ?? null,
     packaging: variant?.packaging ?? null,
@@ -107,7 +112,7 @@ export async function listCatalog(input: {
       skip,
       select: {
         id: true, categoryId: true, brandId: true, canonicalName: true,
-        content: { select: { slug: true, displayName: true, description: true, imageUrls: true } },
+        content: { select: { slug: true, displayName: true, description: true, imageUrls: true, attributes: true } },
         variants: { ...defaultVariant, select: { id: true, sku: true, sourceSku: true, packaging: true } },
       },
     }),
@@ -141,7 +146,7 @@ export async function getProductBySlug(storeId: string, slug: string): Promise<C
   const content = await prisma.commerceProductContent.findUnique({
     where: { storeId_slug: { storeId, slug } },
     select: {
-      slug: true, displayName: true, description: true, imageUrls: true,
+      slug: true, displayName: true, description: true, imageUrls: true, attributes: true,
       product: {
         select: {
           id: true, categoryId: true, brandId: true, canonicalName: true, status: true,

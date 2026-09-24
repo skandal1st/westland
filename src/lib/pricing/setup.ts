@@ -12,6 +12,13 @@ import type { SessionUser } from '@/lib/authz'
  */
 type Client = PrismaClient
 
+export class FulfillmentChannelUpdateError extends Error {
+  constructor(public code: 'NOT_FOUND' | 'INVALID_REFERENCE' | 'CODE_EXISTS') {
+    super(code)
+    this.name = 'FulfillmentChannelUpdateError'
+  }
+}
+
 export function createInventoryLocation(input: { storeId: string; code: string; name: string }, client: Client = defaultPrisma) {
   assertCapability('commerce-core')
 
@@ -84,6 +91,70 @@ export async function upsertFulfillmentChannel(
     })
     return channel
   })
+}
+
+export async function updateFulfillmentChannel(
+  input: {
+    storeId: string
+    channelId: string
+    code: string
+    name: string
+    paymentMethod: PaymentMethod
+    inventoryLocationId: string
+    priceBookId: string | null
+    isActive: boolean
+    actor: SessionUser
+  },
+  client: Client = defaultPrisma,
+) {
+  assertCapability('commerce-core')
+
+  try {
+    return await client.$transaction(async (tx) => {
+      const [current, location, priceBook] = await Promise.all([
+        tx.fulfillmentChannel.findFirst({
+          where: { id: input.channelId, storeId: input.storeId },
+          select: { id: true, code: true, name: true, paymentMethod: true, inventoryLocationId: true, priceBookId: true, isActive: true },
+        }),
+        tx.inventoryLocation.findFirst({ where: { id: input.inventoryLocationId, storeId: input.storeId }, select: { id: true } }),
+        input.priceBookId
+          ? tx.priceBook.findFirst({ where: { id: input.priceBookId, storeId: input.storeId }, select: { id: true } })
+          : Promise.resolve(null),
+      ])
+      if (!current) throw new FulfillmentChannelUpdateError('NOT_FOUND')
+      if (!location || (input.priceBookId && !priceBook)) throw new FulfillmentChannelUpdateError('INVALID_REFERENCE')
+
+      const channel = await tx.fulfillmentChannel.update({
+        where: { id: current.id },
+        data: {
+          code: input.code,
+          name: input.name,
+          paymentMethod: input.paymentMethod,
+          inventoryLocationId: input.inventoryLocationId,
+          priceBookId: input.priceBookId,
+          isActive: input.isActive,
+        },
+        select: { id: true, code: true, name: true, paymentMethod: true, inventoryLocationId: true, priceBookId: true, isActive: true },
+      })
+      await projectChannelAvailability(channel.id, tx)
+      await recordAudit(tx, {
+        storeId: input.storeId,
+        actor: input.actor,
+        action: AuditAction.FulfillmentChannelChanged,
+        targetType: 'FulfillmentChannel',
+        targetId: channel.id,
+        summary: `Channel ${channel.code} updated`,
+        metadata: { before: current, after: channel },
+      })
+      return channel
+    })
+  } catch (error) {
+    if (error instanceof FulfillmentChannelUpdateError) throw error
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+      throw new FulfillmentChannelUpdateError('CODE_EXISTS')
+    }
+    throw error
+  }
 }
 
 export async function listActiveChannels(storeId: string, client: Client = defaultPrisma) {

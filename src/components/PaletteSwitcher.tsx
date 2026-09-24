@@ -1,7 +1,9 @@
 'use client'
 
-import { Check, Palette } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { Check } from 'lucide-react'
+import { useSession } from 'next-auth/react'
+import { useState } from 'react'
+import { resolvePalette, type PaletteId } from '@/lib/palette'
 import { useStoreProfile } from '@/lib/store-profile-context'
 
 const palettes = [
@@ -9,84 +11,65 @@ const palettes = [
   { id: 'blue', name: 'Синяя', colors: ['#1557d6', '#21c7d9'] },
   { id: 'graphite', name: 'Графитовая', colors: ['#25282d', '#35c985'] },
   { id: 'burgundy', name: 'Бордовая', colors: ['#8b1e3f', '#e2b84b'] },
-] as const
-
-type PaletteId = (typeof palettes)[number]['id']
-
-function isPalette(value: string | null): value is PaletteId {
-  return palettes.some((palette) => palette.id === value)
-}
+] as const satisfies ReadonlyArray<{ id: PaletteId; name: string; colors: readonly string[] }>
 
 export function PaletteSwitcher() {
   const profile = useStoreProfile()
-  const paletteKey = `${profile.storageNamespace}-palette`
-  const [open, setOpen] = useState(false)
-  const [active, setActive] = useState<PaletteId>(isPalette(profile.theme.defaultPalette) ? profile.theme.defaultPalette : 'violet')
-  const rootRef = useRef<HTMLDivElement>(null)
+  const { data: session } = useSession()
+  const [active, setActive] = useState<PaletteId>(() => resolvePalette(profile.theme.defaultPalette))
+  const [busy, setBusy] = useState<PaletteId | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+  const canChange = session?.user?.role === 'ADMIN'
 
-  useEffect(() => {
-    const saved = window.localStorage.getItem(paletteKey)
-    if (isPalette(saved)) setActive(saved)
-  }, [paletteKey])
-
-  useEffect(() => {
-    if (!open) return
-
-    const close = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false)
+  const selectPalette = async (id: PaletteId) => {
+    if (!canChange || id === active) return
+    setBusy(id)
+    setMessage(null)
+    try {
+      const response = await fetch('/api/staff/settings/palette', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ palette: id }),
+      })
+      if (!response.ok) {
+        setMessage(response.status === 403 ? 'Изменение доступно только администратору.' : 'Не удалось сохранить цветовую схему. Повторите попытку.')
+        return
+      }
+      document.documentElement.dataset.palette = id
+      setActive(id)
+      setMessage('Цветовая схема сохранена для всех посетителей сайта.')
+    } catch {
+      setMessage('Не удалось связаться с сервером. Проверьте подключение и повторите.')
+    } finally {
+      setBusy(null)
     }
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false)
-    }
-
-    document.addEventListener('mousedown', close)
-    document.addEventListener('keydown', closeOnEscape)
-    return () => {
-      document.removeEventListener('mousedown', close)
-      document.removeEventListener('keydown', closeOnEscape)
-    }
-  }, [open])
-
-  const selectPalette = (id: PaletteId) => {
-    document.documentElement.dataset.palette = id
-    window.localStorage.setItem(paletteKey, id)
-    setActive(id)
-    setOpen(false)
   }
 
   return (
-    <div className="palette-switcher" ref={rootRef}>
-      <button
-        className="palette-trigger"
-        type="button"
-        aria-label="Выбрать цветовую палитру"
-        aria-expanded={open}
-        aria-haspopup="menu"
-        onClick={() => setOpen((value) => !value)}
-      >
-        <Palette aria-hidden="true" />
-      </button>
-      {open ? (
-        <div className="palette-menu" role="menu" aria-label="Цветовые палитры">
-          <strong>Цвет интерфейса</strong>
-          {palettes.map((palette) => (
-            <button
-              className={active === palette.id ? 'active' : ''}
-              key={palette.id}
-              type="button"
-              role="menuitemradio"
-              aria-checked={active === palette.id}
-              onClick={() => selectPalette(palette.id)}
-            >
-              <span className="palette-swatches" aria-hidden="true">
-                {palette.colors.map((color) => <i key={color} style={{ background: color }} />)}
-              </span>
-              <span>{palette.name}</span>
-              {active === palette.id ? <Check aria-hidden="true" /> : null}
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
+    <section className="palette-settings">
+      <h3>Цветовая схема</h3>
+      <p className="settings-note">Выбор применяется ко всему сайту и сохраняется для всех посетителей. По умолчанию используется графитовая схема.</p>
+      <div className="palette-settings-options" role="radiogroup" aria-label="Цветовая схема сайта">
+        {palettes.map((palette) => (
+          <button
+            className={active === palette.id ? 'active' : ''}
+            key={palette.id}
+            type="button"
+            role="radio"
+            aria-checked={active === palette.id}
+            disabled={!canChange || busy !== null}
+            onClick={() => void selectPalette(palette.id)}
+          >
+            <span className="palette-settings-swatches" aria-hidden="true">
+              {palette.colors.map((color) => <i key={color} style={{ background: color }} />)}
+            </span>
+            <span>{busy === palette.id ? 'Сохранение…' : palette.name}</span>
+            {active === palette.id ? <Check aria-hidden="true" /> : null}
+          </button>
+        ))}
+      </div>
+      {!canChange ? <p className="settings-note">Изменять схему может только администратор.</p> : null}
+      {message ? <p className="palette-settings-message" role="status">{message}</p> : null}
+    </section>
   )
 }

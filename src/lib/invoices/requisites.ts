@@ -14,6 +14,7 @@ import { z } from 'zod'
 export const SellerRequisitesSchema = z.object({
   companyName: z.string().min(1),
   inn: z.string().min(1),
+  ogrn: z.string().optional(),
   kpp: z.string().optional(),
   city: z.string().optional(),
   legalAddress: z.string().optional(),
@@ -47,6 +48,7 @@ export type SellerRequisites = z.infer<typeof SellerRequisitesSchema>
 export const StoreRequisitesInputSchema = z.object({
   companyName: z.string().trim().max(200).optional(),
   inn: z.string().trim().max(20).optional(),
+  ogrn: z.string().trim().max(20).optional(),
   kpp: z.string().trim().max(20).optional(),
   city: z.string().trim().max(100).optional(),
   legalAddress: z.string().trim().max(300).optional(),

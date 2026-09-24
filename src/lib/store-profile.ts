@@ -52,7 +52,7 @@ export const DEV_STORE_PROFILE: StoreProfile = {
   modules: { b2b: true, content: true, invoices: true, promotions: true },
   policies: { catalogRequiresAuth: true, registration: 'manual', requireAgeConfirmation: true },
   integrations: { primaryErp: 'custom' },
-  theme: { id: 'default', defaultPalette: 'violet' },
+  theme: { id: 'default', defaultPalette: 'graphite' },
   defaultChannelCode: 'DEFAULT',
 }
 
@@ -92,7 +92,7 @@ export function deploymentProfileToRuntime(raw: unknown): StoreProfile {
     integrations: { primaryErp: mapErp(dp.integration?.provider) },
     theme: {
       id: rt.themeId ?? dp.store?.code ?? 'default',
-      defaultPalette: rt.defaultPalette ?? 'violet',
+      defaultPalette: rt.defaultPalette ?? 'graphite',
     },
     defaultChannelCode: rt.defaultChannelCode ?? 'DEFAULT',
   })

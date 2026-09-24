@@ -17,11 +17,11 @@ export async function GET() {
 }
 
 const schema = z.object({
-  name: z.string().trim().min(1),
-  address: z.string().trim().min(1),
-  city: z.string().trim().min(1),
-  contactName: z.string().optional(),
-  contactPhone: z.string().optional(),
+  name: z.string().trim().min(1).max(200),
+  address: z.string().trim().min(1).max(2000),
+  city: z.string().trim().min(1).max(200),
+  contactName: z.string().trim().max(200).optional(),
+  contactPhone: z.string().trim().max(100).optional(),
   isDefault: z.boolean().optional(),
 })
 

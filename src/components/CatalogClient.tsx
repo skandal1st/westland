@@ -20,6 +20,7 @@ type CatalogItem = {
   slug: string
   displayName: string
   description: string
+  attributes: { name: string; value: string }[]
   sku: string | null
   sourceSku?: string | null
   packaging: string | null
@@ -167,6 +168,7 @@ export function CatalogClient({ fixedBrand }: { fixedBrand?: { name: string; slu
                     {(item.sourceSku ?? item.sku) ? <span className="product-brand"><i aria-hidden="true" />{item.sourceSku ?? item.sku}</span> : null}
                     <h2>{item.displayName}</h2>
                     <p>{item.packaging ? item.packaging + ' · ' : ''}{available != null ? `Последние данные: ${available} шт.${item.availability?.stale ? ' (данные устарели)' : ''}. Наличие уточняется` : 'остаток уточняется'}</p>
+                    {item.description || item.attributes.length ? <details className="product-extra"><summary>Подробнее</summary>{item.description ? <p>{item.description}</p> : null}{item.attributes.length ? <dl>{item.attributes.map(attribute => <div key={attribute.name}><dt>{attribute.name}</dt><dd>{attribute.value}</dd></div>)}</dl> : null}</details> : null}
                   </div>
                   <div className="product-row-actions">
                     <div className="quantity quantity-large">

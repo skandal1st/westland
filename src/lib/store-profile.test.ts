@@ -48,7 +48,7 @@ describe('deploymentProfileToRuntime', () => {
     expect(p.integrations.primaryErp).toBe('one-c')
     // defaults
     expect(p.policies).toEqual({ catalogRequiresAuth: true, registration: 'manual', requireAgeConfirmation: true })
-    expect(p.theme).toEqual({ id: 'acme', defaultPalette: 'violet' })
+    expect(p.theme).toEqual({ id: 'acme', defaultPalette: 'graphite' })
     expect(p.defaultChannelCode).toBe('DEFAULT')
   })
 

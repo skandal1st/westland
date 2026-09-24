@@ -25,6 +25,24 @@ type Order = {
   invoice: { number: string; version: number } | null
 }
 
+type OrderComposition = {
+  id: string
+  number: string
+  total: string
+  currency: string
+  comment: string
+  items: Array<{
+    id: string
+    sku: string
+    sourceSku: string | null
+    name: string
+    packaging: string
+    quantity: string
+    unitPrice: string
+    lineTotal: string
+  }>
+}
+
 const NEXT: Record<string, string[]> = {
   SUBMITTED: ['CONFIRMED', 'CANCELLED'],
   REVIEW_REQUIRED: ['CANCELLED'],
@@ -34,6 +52,13 @@ const NEXT: Record<string, string[]> = {
 
 const decodeOrders = (value: unknown) => readArray<Order>(value, 'orders')
 
+const decodeComposition = (value: unknown): OrderComposition => {
+  if (!value || typeof value !== 'object' || !('items' in value) || !Array.isArray(value.items)) {
+    throw new Error('Не удалось прочитать состав заказа.')
+  }
+  return value as OrderComposition
+}
+
 export function OrdersPanel() {
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -41,6 +66,10 @@ export function OrdersPanel() {
   const orders = resource.data ?? []
   const load = resource.reload
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [compositions, setCompositions] = useState<Record<string, OrderComposition>>({})
+  const [compositionLoading, setCompositionLoading] = useState<Record<string, boolean>>({})
+  const [compositionErrors, setCompositionErrors] = useState<Record<string, string | null>>({})
 
   const hasQueuedExports = orders.some(order => ['PENDING', 'PROCESSING', 'RETRYING', 'AWAITING_ACK'].includes(order.export?.status ?? ''))
   useEffect(() => {
@@ -61,6 +90,31 @@ export function OrdersPanel() {
     } catch { setMessage('Не удалось выполнить операцию или обновить список. Проверьте состояние заказа перед повтором.') } finally {
       setBusyId(null)
     }
+  }
+
+  const loadComposition = async (id: string) => {
+    setCompositionLoading((current) => ({ ...current, [id]: true }))
+    setCompositionErrors((current) => ({ ...current, [id]: null }))
+    try {
+      const response = await fetch(`/api/staff/orders/${encodeURIComponent(id)}`)
+      const result = await response.json().catch(() => null)
+      if (!response.ok) throw new Error('Не удалось загрузить состав заказа. Обновите список и повторите попытку.')
+      const composition = decodeComposition(result)
+      setCompositions((current) => ({ ...current, [id]: composition }))
+    } catch (error) {
+      setCompositionErrors((current) => ({ ...current, [id]: error instanceof Error ? error.message : 'Не удалось загрузить состав заказа.' }))
+    } finally {
+      setCompositionLoading((current) => ({ ...current, [id]: false }))
+    }
+  }
+
+  const toggleComposition = (id: string) => {
+    if (expandedId === id) {
+      setExpandedId(null)
+      return
+    }
+    setExpandedId(id)
+    if (!compositions[id] && !compositionLoading[id]) void loadComposition(id)
   }
 
   return (
@@ -84,6 +138,7 @@ export function OrdersPanel() {
             {order.invoice ? <><InvoiceDownloadLink orderId={order.id} label={order.invoice.number} />{order.invoice.version > 1 ? <small>Версия {order.invoice.version}</small> : null}</> : '—'}
           </span>
           <span data-label="Действия" className="moderation-actions">
+            <button className="order-composition-toggle" type="button" aria-expanded={expandedId === order.id} aria-controls={`order-composition-${order.id}`} onClick={() => toggleComposition(order.id)}>{expandedId === order.id ? 'Скрыть состав' : 'Состав заказа'}</button>
             {(NEXT[order.status] ?? []).filter(to => !(to === 'CONFIRMED' && ['DELIVERED','AWAITING_ACK'].includes(order.export?.status ?? ''))).map((to) => <button key={to} type="button" disabled={busyId === order.id} onClick={() => act(order.id, `/api/staff/orders/${order.id}/status`, { to, expectedStatus: order.status })}>{orderActionLabel(to)}</button>)}
             {!['CANCELLED', 'REJECTED', 'REVIEW_REQUIRED'].includes(order.status) && order.export && ['FAILED', 'RETRYING'].includes(order.export.status) ? <button type="button" disabled={busyId === order.id} onClick={() => act(order.id, `/api/staff/orders/${order.id}/export/retry`)}>Повторить передачу</button> : null}
             {order.export?.externalId ? <button type="button" disabled={busyId === order.id} onClick={() => act(order.id, `/api/staff/orders/${order.id}/reconcile`)}>Сверить статус с 1С</button> : null}
@@ -91,6 +146,23 @@ export function OrdersPanel() {
             {order.canIssueInvoice ? <InvoiceIssueButton key={order.invoice?.version ?? 0} orderId={order.id} invoice={order.invoice} onChanged={load} /> : null}
           </span>
         </div>
+        {expandedId === order.id ? <section className="order-composition-panel" id={`order-composition-${order.id}`} aria-labelledby={`order-composition-title-${order.id}`}>
+          <div className="order-composition-summary">
+            <div><h3 id={`order-composition-title-${order.id}`}>Состав заказа {order.number}</h3>{compositions[order.id] ? <span>Позиций: {compositions[order.id].items.length}</span> : null}</div>
+            {compositions[order.id] ? <strong>{formatMoney(compositions[order.id].total)} {compositions[order.id].currency === 'RUB' ? '₽' : compositions[order.id].currency}</strong> : null}
+          </div>
+          {compositionLoading[order.id] ? <p role="status">Загрузка состава заказа…</p> : null}
+          {compositionErrors[order.id] ? <div className="load-error" role="alert"><span>{compositionErrors[order.id]}</span><button type="button" onClick={() => void loadComposition(order.id)}>Повторить</button></div> : null}
+          {compositions[order.id] ? <>
+            {compositions[order.id].items.length ? <ul className="order-composition-lines">{compositions[order.id].items.map((item) => <li key={item.id}>
+              <span><strong>{item.name}</strong><small>{item.sourceSku ?? item.sku}{item.packaging ? ` · ${item.packaging}` : ''}</small></span>
+              <span><small>Количество</small>{item.quantity.replace('.', ',')}</span>
+              <span><small>Цена</small>{formatMoney(item.unitPrice)} {compositions[order.id].currency === 'RUB' ? '₽' : compositions[order.id].currency}</span>
+              <strong>{formatMoney(item.lineTotal)} {compositions[order.id].currency === 'RUB' ? '₽' : compositions[order.id].currency}</strong>
+            </li>)}</ul> : <p>В заказе нет позиций.</p>}
+            {compositions[order.id].comment ? <p className="order-composition-comment"><strong>Комментарий покупателя:</strong> {compositions[order.id].comment}</p> : null}
+          </> : null}
+        </section> : null}
         {confirmId === order.id ? <ManualOrderConfirmation orderId={order.id} onDone={load} onClose={() => setConfirmId(null)} /> : null}
         </Fragment>
       ))}

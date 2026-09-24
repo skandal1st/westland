@@ -32,7 +32,7 @@ export async function GET(request: Request) {
       skip,
       select: {
         id: true, canonicalName: true, status: true,
-        content: { select: { displayName: true, slug: true, description: true } },
+        content: { select: { displayName: true, slug: true, description: true, attributes: true, updatedById: true } },
         variants: { where: { isDefault: true }, take: 1, select: { sku: true, sourceSku: true, packaging: true } },
       },
     }),
@@ -47,6 +47,10 @@ export async function GET(request: Request) {
       displayName: p.content?.displayName ?? null,
       slug: p.content?.slug ?? null,
       description: p.content?.description ?? '',
+      attributes: p.content?.attributes && !Array.isArray(p.content.attributes) && typeof p.content.attributes === 'object'
+        ? Object.fromEntries(Object.entries(p.content.attributes).filter((entry): entry is [string, string] => typeof entry[1] === 'string'))
+        : {},
+      manuallyEdited: Boolean(p.content?.updatedById),
       sku: p.variants[0]?.sku ?? null,
       sourceSku: p.variants[0]?.sourceSku ?? null,
       packaging: p.variants[0]?.packaging ?? null,

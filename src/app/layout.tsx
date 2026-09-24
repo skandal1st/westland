@@ -7,6 +7,7 @@ import { SiteFooter } from '@/components/SiteFooter'
 import { prisma } from '@/lib/db'
 import { StoreRequisitesInputSchema } from '@/lib/invoices/requisites'
 import { resolvePalette } from '@/lib/palette'
+import { getSiteUrl, storefrontDescription } from '@/lib/seo'
 import { loadStoreProfile, toPublicProfile } from '@/lib/store-profile'
 import './globals.css'
 
@@ -17,13 +18,25 @@ export const dynamic = 'force-dynamic'
 
 export function generateMetadata(): Metadata {
   const profile = loadStoreProfile()
+  const siteUrl = getSiteUrl()
   return {
-    title: `${profile.identity.name} — оптовый каталог`,
-    description: `Закрытый B2B-каталог ${profile.identity.name}`,
+    metadataBase: siteUrl,
+    applicationName: profile.identity.name,
+    title: { default: `${profile.identity.name} — оптовый B2B-каталог`, template: `%s | ${profile.identity.name}` },
+    description: storefrontDescription,
+    keywords: ['оптовый каталог', 'B2B каталог', 'товары для бизнеса', 'Westside', 'оптовые поставки'],
+    category: 'business',
+    openGraph: {
+      type: 'website', locale: 'ru_RU', url: siteUrl, siteName: profile.identity.name,
+      title: `${profile.identity.name} — оптовый B2B-каталог`, description: storefrontDescription,
+      images: [{ url: '/media/home-hero.webp', width: 1672, height: 941, alt: `Оптовый каталог ${profile.identity.name}` }],
+    },
+    twitter: { card: 'summary_large_image', title: `${profile.identity.name} — оптовый B2B-каталог`, description: storefrontDescription, images: ['/media/home-hero.webp'] },
     icons: {
       icon: '/icon.png',
       apple: '/apple-icon.png',
     },
+    formatDetection: { email: false, address: false, telephone: false },
   }
 }
 

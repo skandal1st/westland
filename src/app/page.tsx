@@ -1,13 +1,25 @@
 /* eslint-disable @next/next/no-img-element -- Uploaded brand and campaign assets are served from validated application endpoints. */
 import Link from 'next/link'
+import type { Metadata } from 'next'
 import { ArrowRight, PackageCheck } from 'lucide-react'
 import { StorefrontHeader } from '@/components/StorefrontHeader'
 import { StoreBanners } from '@/components/StoreBanners'
 import { getActiveBanners } from '@/lib/content/read'
 import { parseHomeCompanyBlock, safeHomeCtaHref, HOME_COMPANY_BLOCK_KEY } from '@/lib/content/home'
+import { StoreRequisitesInputSchema } from '@/lib/invoices/requisites'
 import { prisma } from '@/lib/db'
 import { getActiveStore } from '@/lib/store'
+import { getSiteUrl, storefrontDescription } from '@/lib/seo'
 import { loadStoreProfile } from '@/lib/store-profile'
+
+export function generateMetadata(): Metadata {
+  const profile = loadStoreProfile()
+  return {
+    title: { absolute: `${profile.identity.name} — оптовый B2B-каталог для бизнеса` },
+    description: storefrontDescription,
+    alternates: { canonical: '/' },
+  }
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -22,8 +34,9 @@ function offerLine(rule: unknown) {
 export default async function HomePage() {
   const profile = loadStoreProfile()
   const store = await getActiveStore()
+  const siteUrl = getSiteUrl()
   const now = new Date()
-  const [banners, promotions, brands, block] = await Promise.all([
+  const [banners, promotions, brands, block, settings] = await Promise.all([
     profile.modules.content ? getActiveBanners({ storeId: store.id, placement: 'HOME', date: now }) : Promise.resolve([]),
     profile.modules.promotions ? prisma.giftPromotion.findMany({
       where: { storeId: store.id, isActive: true, showOnHome: true, AND: [{ OR: [{ startsAt: null }, { startsAt: { lte: now } }] }, { OR: [{ endsAt: null }, { endsAt: { gt: now } }] }] },
@@ -36,11 +49,29 @@ export default async function HomePage() {
       select: { id: true, name: true, slug: true, logoUrl: true },
     }),
     profile.modules.content ? prisma.contentBlock.findUnique({ where: { storeId_key: { storeId: store.id, key: HOME_COMPANY_BLOCK_KEY } }, select: { title: true, body: true, isActive: true } }) : Promise.resolve(null),
+    prisma.appSettings.findUnique({ where: { storeId: store.id }, select: { sellerRequisites: true } }),
   ])
   const company = block?.isActive ? parseHomeCompanyBlock(block.title, block.body) : null
   const companyHref = company?.ctaHref ? safeHomeCtaHref(company.ctaHref) : null
+  const parsedRequisites = StoreRequisitesInputSchema.safeParse(settings?.sellerRequisites ?? {})
+  const requisites = parsedRequisites.success ? parsedRequisites.data : {}
+  const structuredData = [
+    {
+      '@context': 'https://schema.org', '@type': 'Organization', '@id': `${siteUrl.href}#organization`,
+      name: profile.identity.name, legalName: requisites.companyName || profile.identity.legalName || profile.identity.name,
+      url: siteUrl.href, logo: new URL('/brand/westside-logo.png', siteUrl).href,
+      ...(requisites.inn ? { taxID: requisites.inn } : {}),
+      ...(requisites.ogrn ? { identifier: { '@type': 'PropertyValue', propertyID: 'ОГРН', value: requisites.ogrn } } : {}),
+    },
+    {
+      '@context': 'https://schema.org', '@type': 'WebSite', '@id': `${siteUrl.href}#website`,
+      name: profile.identity.name, url: siteUrl.href, inLanguage: 'ru-RU',
+      publisher: { '@id': `${siteUrl.href}#organization` },
+    },
+  ]
 
   return <>
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, '\\u003c') }} />
     <StorefrontHeader />
     <main className="home-page">
       <section className="home-hero" aria-labelledby="home-title">

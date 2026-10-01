@@ -7,7 +7,7 @@ import { AuditAction, recordAudit } from '@/lib/audit'
 import type { SessionUser } from '@/lib/authz'
 
 export class RegistrationError extends Error {
-  constructor(public code: 'EMAIL_TAKEN' | 'ALREADY_PENDING' | 'INVALID_INN' | 'NOT_FOUND' | 'NOT_PENDING' | 'FORBIDDEN' | 'INVALID_DELIVERY' | 'REQUISITES_MISMATCH') {
+  constructor(public code: 'EMAIL_TAKEN' | 'ALREADY_PENDING' | 'INVALID_INN' | 'INVALID_KPP' | 'NOT_FOUND' | 'NOT_PENDING' | 'FORBIDDEN' | 'INVALID_DELIVERY' | 'REQUISITES_MISMATCH') {
     super(code)
     this.name = 'RegistrationError'
   }
@@ -19,7 +19,7 @@ export type RegistrationInput = {
   contactName: string
   phone?: string
   legalName: string
-  inn: string
+  inn?: string
   kpp?: string
 }
 
@@ -40,9 +40,10 @@ export async function createRegistrationRequest(input: RegistrationInput) {
   const pending = await prisma.registrationRequest.findFirst({ where: { storeId: store.id, email, status: 'PENDING' } })
   if (pending) throw new RegistrationError('ALREADY_PENDING')
 
-  const inn = input.inn.trim()
-  const innCheck = await getInnValidator().validate(inn)
-  if (!innCheck.valid) throw new RegistrationError('INVALID_INN')
+  const inn = input.inn?.trim() ?? ''
+  if (inn && !(await getInnValidator().validate(inn)).valid) throw new RegistrationError('INVALID_INN')
+  const kpp = input.kpp?.trim() ?? ''
+  if (kpp && !/^\d{9}$/.test(kpp)) throw new RegistrationError('INVALID_KPP')
 
   const passwordHash = await bcrypt.hash(input.password, 10)
   const request = await prisma.registrationRequest.create({
@@ -54,13 +55,13 @@ export async function createRegistrationRequest(input: RegistrationInput) {
       phone: input.phone?.trim() || null,
       legalName: input.legalName.trim(),
       inn,
-      kpp: input.kpp?.trim() || null,
+      kpp: kpp || null,
       status: 'PENDING',
     },
   })
 
   const settings = await prisma.appSettings.findUnique({ where: { storeId: store.id } })
-  if (settings?.registrationMode === 'AUTO_APPROVE') {
+  if (settings?.registrationMode === 'AUTO_APPROVE' && inn) {
     return approveRegistration(request.id, { actor: null, priceGroupId: settings.defaultPriceGroupId ?? undefined })
   }
   return request
@@ -73,7 +74,7 @@ export async function createRegistrationRequest(input: RegistrationInput) {
  */
 export async function approveRegistration(
   requestId: string,
-  options: { actor: SessionUser | null; priceGroupId?: string; locationIds?: string[] },
+  options: { actor: SessionUser | null; priceGroupId?: string; locationIds?: string[]; inn?: string; kpp?: string },
 ) {
   assertCapability('commerce-b2b')
 
@@ -88,18 +89,22 @@ export async function approveRegistration(
     if (options.actor) {
       if (options.actor.storeId !== request.storeId || !await tx.user.findFirst({ where: { id: options.actor.id, storeId: request.storeId, status: 'ACTIVE', role: { in: ['STAFF', 'ADMIN'] } } })) throw new RegistrationError('FORBIDDEN')
     } else if (pointIds.length) throw new RegistrationError('FORBIDDEN')
-    const existing = await tx.customer.findUnique({ where: { storeId_inn: { storeId: request.storeId, inn: request.inn } } })
-    if (existing && (existing.kpp ?? '') !== (request.kpp ?? '')) throw new RegistrationError('REQUISITES_MISMATCH')
+    const inn = (options.inn ?? request.inn).trim()
+    if (!inn || !(await getInnValidator().validate(inn)).valid) throw new RegistrationError('INVALID_INN')
+    const kpp = (options.kpp ?? request.kpp ?? '').trim()
+    if (kpp && !/^\d{9}$/.test(kpp)) throw new RegistrationError('INVALID_KPP')
+    const existing = await tx.customer.findUnique({ where: { storeId_inn: { storeId: request.storeId, inn } } })
+    if (existing && (existing.kpp ?? '') !== kpp) throw new RegistrationError('REQUISITES_MISMATCH')
     if (options.priceGroupId && !await tx.priceGroup.findFirst({ where: { id: options.priceGroupId, storeId: request.storeId } })) throw new RegistrationError('FORBIDDEN')
     const customer = await tx.customer.upsert({
-      where: { storeId_inn: { storeId: request.storeId, inn: request.inn } },
+      where: { storeId_inn: { storeId: request.storeId, inn } },
       update: {},
       create: {
         storeId: request.storeId,
         displayName: request.legalName,
         legalName: request.legalName,
-        inn: request.inn,
-        kpp: request.kpp,
+        inn,
+        kpp: kpp || null,
       },
     })
 
@@ -129,6 +134,8 @@ export async function approveRegistration(
         assignedPriceGroupId: options.priceGroupId ?? null,
         createdUserId: user.id,
         createdCustomerId: customer.id,
+        inn,
+        kpp: kpp || null,
       },
     })
 

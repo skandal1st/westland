@@ -71,6 +71,24 @@ describe('identity / B2B access (integration)', () => {
 
     await expect(createRegistrationRequest({ email: 'bad-inn@test.local', password: 'password12', contactName: 'a', legalName: 'b', inn: '12' }))
       .rejects.toBeInstanceOf(RegistrationError)
+
+    await expect(createRegistrationRequest({ email: 'bad-kpp@test.local', password: 'password12', contactName: 'a', legalName: 'b', kpp: '12' }))
+      .rejects.toMatchObject({ code: 'INVALID_KPP' })
+  })
+
+  it('accepts a request without tax details and lets a moderator complete them before approval', async () => {
+    await prisma.appSettings.update({ where: { storeId }, data: { registrationMode: 'MANUAL_APPROVAL' } })
+    const request = await createRegistrationRequest({
+      email: 'no-tax-details@test.local', password: 'password12', contactName: 'Без реквизитов', legalName: 'ООО Позже',
+    })
+    expect(request).toMatchObject({ status: 'PENDING', inn: '', kpp: null })
+
+    await expect(approveRegistration(request.id, { actor: null })).rejects.toMatchObject({ code: 'INVALID_INN' })
+    expect(await prisma.user.findFirst({ where: { storeId, email: request.email } })).toBeNull()
+
+    const approved = await approveRegistration(request.id, { actor: null, inn: '7812345678', kpp: '781201001' })
+    expect(approved).toMatchObject({ status: 'APPROVED', inn: '7812345678', kpp: '781201001' })
+    expect(await prisma.customer.findUnique({ where: { storeId_inn: { storeId, inn: '7812345678' } } })).toMatchObject({ kpp: '781201001' })
   })
 
   it('rejects a request with a reason and audits', async () => {

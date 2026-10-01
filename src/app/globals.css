@@ -305,11 +305,14 @@ a { color: inherit; }
 .staff-placeholder { min-height: 420px; padding: 44px; background: var(--glass); border: 1px solid var(--line); border-radius: var(--radius-panel); }
 .staff-placeholder p { max-width: 680px; color: var(--muted); }
 .moderation-list { border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--glass); overflow: auto; }
-.moderation-head, .moderation-row { min-width: 880px; padding: 0 20px; display: grid; grid-template-columns: 1.3fr 1.2fr 120px 250px; gap: 18px; align-items: center; }
+.moderation-head, .moderation-row { min-width: 940px; padding: 0 20px; display: grid; grid-template-columns: 1.3fr 1.2fr 180px 250px; gap: 18px; align-items: center; }
 .moderation-head { min-height: 46px; color: var(--muted); font-size: 12px; }
 .moderation-row { min-height: 82px; border-top: 1px solid var(--line); }
 .moderation-row > span:not(.moderation-actions) { display: flex; flex-direction: column; }
 .moderation-row small { color: var(--muted); }
+.moderation-requisites { gap: 6px; }
+.moderation-requisites label { display: flex; flex-direction: column; gap: 3px; color: var(--muted); font-size: 11px; }
+.moderation-requisites input { width: 100%; min-width: 0; height: 34px; padding: 0 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--glass-strong); color: var(--ink); }
 .moderation-status { color: var(--purple); }
 .moderation-status.approved { color: var(--success); }
 .moderation-status.rejected { color: var(--danger); }

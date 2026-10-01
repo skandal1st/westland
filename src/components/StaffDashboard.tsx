@@ -27,6 +27,7 @@ type PendingRequest = {
   contactName: string
   legalName: string
   inn: string
+  kpp: string | null
   deliveryLocations: Array<{ id: string; name: string; city: string; address: string }>
 }
 
@@ -39,6 +40,7 @@ export function StaffDashboard() {
   const [priceGroups, setPriceGroups] = useState<{ id: string; name: string }[]>([])
   const [groupChoice, setGroupChoice] = useState<Record<string, string>>({})
   const [pointChoice, setPointChoice] = useState<Record<string, string[]>>({})
+  const [requisitesChoice, setRequisitesChoice] = useState<Record<string, { inn: string; kpp: string }>>({})
   const [moderationError, setModerationError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
 
@@ -46,7 +48,9 @@ export function StaffDashboard() {
     const response = await fetch('/api/staff/registrations?status=PENDING')
     if (response.ok) {
       const data = await response.json()
-      setRegistrations(data.requests ?? [])
+      const requests = (data.requests ?? []) as PendingRequest[]
+      setRegistrations(requests)
+      setRequisitesChoice(previous => Object.fromEntries(requests.map(item => [item.id, previous[item.id] ?? { inn: item.inn, kpp: item.kpp ?? '' }])))
     }
   }, [])
 
@@ -59,7 +63,8 @@ export function StaffDashboard() {
     setBusyId(id)
     setModerationError(null)
     try {
-      const payload = action === 'reject' ? { comment: 'Отклонено сотрудником' } : { priceGroupId: groupChoice[id] || undefined, locationIds: pointChoice[id] ?? [] }
+      const requisites = requisitesChoice[id]
+      const payload = action === 'reject' ? { comment: 'Отклонено сотрудником' } : { priceGroupId: groupChoice[id] || undefined, locationIds: pointChoice[id] ?? [], inn: requisites?.inn.trim() || undefined, kpp: requisites?.kpp.trim() || undefined }
       const response = await fetch(`/api/staff/registrations/${id}/${action}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -95,7 +100,7 @@ export function StaffDashboard() {
         {section === 'Модерация' ? (
           <div className="moderation-list">
             {moderationError ? <p role="alert">{moderationError}</p> : null}
-            <div className="moderation-head"><span>Компания</span><span>Контакт</span><span>ИНН</span><span>Решение</span></div>
+            <div className="moderation-head"><span>Компания</span><span>Контакт</span><span>Реквизиты</span><span>Решение</span></div>
             {registrations.length === 0 ? <p className="staff-placeholder">Нет заявок на рассмотрении.</p> : registrations.map((item) => (
               <div className="moderation-row" key={item.id}>
                 <div><strong>{item.legalName}</strong>
@@ -112,7 +117,11 @@ export function StaffDashboard() {
                   </fieldset>
                 </div>
                 <span><strong>{item.contactName}</strong><small>{item.email}</small></span>
-                <span>{item.inn}</span>
+                <span className="moderation-requisites">
+                  <label>ИНН<input inputMode="numeric" maxLength={12} value={requisitesChoice[item.id]?.inn ?? item.inn} onChange={event => setRequisitesChoice(previous => ({ ...previous, [item.id]: { inn: event.target.value, kpp: previous[item.id]?.kpp ?? item.kpp ?? '' } }))} placeholder="10 или 12 цифр" /></label>
+                  <label>КПП<input inputMode="numeric" maxLength={9} value={requisitesChoice[item.id]?.kpp ?? item.kpp ?? ''} onChange={event => setRequisitesChoice(previous => ({ ...previous, [item.id]: { inn: previous[item.id]?.inn ?? item.inn, kpp: event.target.value } }))} placeholder="9 цифр" /></label>
+                  {!(requisitesChoice[item.id]?.inn ?? item.inn).trim() ? <small>Заполните ИНН перед одобрением</small> : null}
+                </span>
                 <span className="moderation-actions">
                   <select aria-label="Ценовая группа" value={groupChoice[item.id] ?? ''} onChange={(event) => setGroupChoice((prev) => ({ ...prev, [item.id]: event.target.value }))}>
                     <option value="">— группа —</option>

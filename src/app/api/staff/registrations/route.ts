@@ -20,7 +20,7 @@ export async function GET(request: Request) {
       status: true, comment: true, reviewedAt: true, createdAt: true,
     },
   })
-  const customers = await prisma.customer.findMany({ where: { storeId: auth.user.storeId, inn: { in: requests.map(r => r.inn) } },
+  const customers = await prisma.customer.findMany({ where: { storeId: auth.user.storeId, inn: { in: requests.map(r => r.inn).filter(Boolean) } },
     select: { inn: true, kpp: true, locations: { select: { id: true, name: true, city: true, address: true }, orderBy: { name: 'asc' } } } })
   const byInn = new Map(customers.map(customer => [customer.inn, customer]))
   return NextResponse.json({ requests: requests.map(request => {

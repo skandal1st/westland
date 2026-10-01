@@ -15,14 +15,15 @@ const schema = z.object({
   contactName: z.string().min(1),
   phone: z.string().optional(),
   legalName: z.string().min(1),
-  inn: z.string().min(1),
-  kpp: z.string().optional(),
+  inn: z.string().max(12).optional(),
+  kpp: z.string().max(9).optional(),
 })
 
 const ERROR_STATUS: Record<RegistrationError['code'], number> = {
   EMAIL_TAKEN: 409,
   ALREADY_PENDING: 409,
   INVALID_INN: 422,
+  INVALID_KPP: 422,
   NOT_FOUND: 404,
   NOT_PENDING: 409,
   FORBIDDEN: 403,

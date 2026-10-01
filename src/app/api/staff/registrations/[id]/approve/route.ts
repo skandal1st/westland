@@ -8,7 +8,7 @@ import { approveRegistration, RegistrationError } from '@/lib/registration'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const schema = z.object({ priceGroupId: z.string().optional(), locationIds: z.array(z.string().min(1)).max(200).default([]) }).strict()
+const schema = z.object({ priceGroupId: z.string().optional(), locationIds: z.array(z.string().min(1)).max(200).default([]), inn: z.string().max(12).optional(), kpp: z.string().max(9).optional() }).strict()
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const auth = await requireApiUser(['STAFF', 'ADMIN'], 'commerce-b2b')
@@ -19,12 +19,12 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if (!parsed.success) return NextResponse.json({ error: 'invalid_input' }, { status: 400 })
 
   try {
-    await approveRegistration(params.id, { actor: auth.user, priceGroupId: parsed.data.priceGroupId, locationIds: parsed.data.locationIds })
+    await approveRegistration(params.id, { actor: auth.user, priceGroupId: parsed.data.priceGroupId, locationIds: parsed.data.locationIds, inn: parsed.data.inn, kpp: parsed.data.kpp })
     return NextResponse.json({ status: 'approved' })
   } catch (error) {
     if (error instanceof LicenseError || error instanceof CapabilityError) return NextResponse.json({ error: error.message }, { status: 403 })
     if (error instanceof RegistrationError) {
-      return NextResponse.json({ error: error.code }, { status: error.code === 'NOT_FOUND' ? 404 : error.code === 'FORBIDDEN' ? 403 : 409 })
+      return NextResponse.json({ error: error.code }, { status: error.code === 'NOT_FOUND' ? 404 : error.code === 'FORBIDDEN' ? 403 : ['INVALID_INN', 'INVALID_KPP'].includes(error.code) ? 422 : 409 })
     }
     throw error
   }

@@ -9,6 +9,7 @@ const REGISTER_ERRORS: Record<string, string> = {
   EMAIL_TAKEN: 'Пользователь с такой почтой уже существует.',
   ALREADY_PENDING: 'Заявка с этой почтой уже на рассмотрении.',
   INVALID_INN: 'ИНН должен содержать 10 или 12 цифр.',
+  INVALID_KPP: 'КПП должен содержать 9 цифр.',
   invalid_input: 'Проверьте правильность заполнения полей.',
   rate_limited: 'Слишком много попыток. Повторите позже.',
 }
@@ -23,7 +24,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
     return (
       <div className="auth-success">
         <h1>Заявка принята</h1>
-        <p>После проверки реквизитов сотрудник откроет доступ и назначит ценовую группу.</p>
+        <p>После проверки заявки сотрудник откроет доступ и назначит ценовую группу.</p>
         <Link className="button button-primary" href="/">На главную</Link>
       </div>
     )
@@ -77,13 +78,13 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   return (
     <form className="auth-card" onSubmit={onSubmit}>
       <h1>{mode === 'login' ? 'Вход для партнёров' : 'Регистрация компании'}</h1>
-      <p>{mode === 'login' ? 'Каталог, цены и остатки доступны после авторизации.' : 'Укажите данные юридического лица. Политика подтверждения настраивается в бек-офисе.'}</p>
+      <p>{mode === 'login' ? 'Каталог, цены и остатки доступны после авторизации.' : 'Укажите данные компании и контактного лица. ИНН и КПП можно добавить позже при модерации.'}</p>
       {mode === 'register' ? (
         <>
           <label>Название компании<input name="legalName" required placeholder="ООО «Компания»" /></label>
           <div className="form-row">
-            <label>ИНН<input name="inn" required inputMode="numeric" placeholder="10 или 12 цифр" /></label>
-            <label>КПП<input name="kpp" inputMode="numeric" placeholder="9 цифр" /></label>
+            <label>ИНН <small>необязательно</small><input name="inn" inputMode="numeric" placeholder="10 или 12 цифр" /></label>
+            <label>КПП <small>необязательно</small><input name="kpp" inputMode="numeric" placeholder="9 цифр" /></label>
           </div>
           <label>Контактное лицо<input name="contactName" required placeholder="Имя и фамилия" /></label>
           <label>Телефон<input name="phone" type="tel" placeholder="+7 000 000-00-00" /></label>

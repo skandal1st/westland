@@ -34,6 +34,7 @@ export async function updateProductContent(
   return prisma.$transaction(async (tx) => {
     const content = await tx.commerceProductContent.findUnique({ where: { productId } })
     if (!content) throw new ContentError('NOT_FOUND')
+    if (options.actor && options.actor.storeId !== content.storeId) throw new ContentError('NOT_FOUND')
 
     if (patch.slug && patch.slug !== content.slug) {
       const clash = await tx.commerceProductContent.findUnique({ where: { storeId_slug: { storeId: content.storeId, slug: patch.slug } } })

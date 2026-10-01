@@ -1,8 +1,9 @@
 'use client'
+/* eslint-disable @next/next/no-img-element -- Product images are validated staff uploads served by the application. */
 
 import { formatMoney as formatDecimalMoney } from '@/lib/money-format'
 
-import { Banknote, CreditCard, Filter, Minus, Plus, SlidersHorizontal } from 'lucide-react'
+import { Banknote, CreditCard, Filter, Image as ImageIcon, Minus, Plus, SlidersHorizontal } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { readArray, useRemoteResource } from '@/lib/use-remote-resource'
@@ -11,6 +12,7 @@ import { useCart } from '@/lib/cart/cart-context'
 import { CategoryTreeControl } from './CategoryTreeControl'
 import type { CategoryNode } from '@/lib/catalog/tree'
 import { StoreBanners, type StorefrontBanner } from './StoreBanners'
+import { ProductGallery } from './ProductGallery'
 
 type Channel = { id: string; code: string; name: string; paymentMethod: 'BANK_TRANSFER' | 'CASH' }
 
@@ -20,6 +22,7 @@ type CatalogItem = {
   slug: string
   displayName: string
   description: string
+  imageUrls: string[]
   attributes: { name: string; value: string }[]
   sku: string | null
   sourceSku?: string | null
@@ -55,6 +58,7 @@ export function CatalogClient({ fixedBrand }: { fixedBrand?: { name: string; slu
   const [query, setQuery] = useState(search)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [changingChannel, setChangingChannel] = useState(false)
+  const [galleryProduct, setGalleryProduct] = useState<{ displayName: string; imageUrls: string[] } | null>(null)
   const channelId = view.channelId
   const categorySlug = searchParams.get('category') ?? ''
   const brandSlug = fixedBrand?.slug ?? searchParams.get('brand') ?? ''
@@ -169,10 +173,13 @@ export function CatalogClient({ fixedBrand }: { fixedBrand?: { name: string; slu
               return (
                 <article className={'product-row ' + (quantity > 0 ? 'in-cart' : '')} key={item.productId}>
                   <div className="product-row-info">
-                    {(item.sourceSku ?? item.sku) ? <span className="product-brand"><i aria-hidden="true" />{item.sourceSku ?? item.sku}</span> : null}
-                    <h2>{item.displayName}</h2>
-                    <p>{item.packaging ? item.packaging + ' · ' : ''}{availabilityLabel}</p>
-                    {item.description || item.attributes.length ? <details className="product-extra"><summary>Подробнее</summary>{item.description ? <p>{item.description}</p> : null}{item.attributes.length ? <dl>{item.attributes.map(attribute => <div key={attribute.name}><dt>{attribute.name}</dt><dd>{attribute.value}</dd></div>)}</dl> : null}</details> : null}
+                    <button type="button" className={'product-thumbnail ' + (item.imageUrls.length ? '' : 'empty')} disabled={!item.imageUrls.length} aria-label={item.imageUrls.length ? `Открыть изображения товара ${item.displayName}` : 'Изображения отсутствуют'} onClick={() => setGalleryProduct({ displayName: item.displayName, imageUrls: item.imageUrls })}>{item.imageUrls[0] ? <img src={item.imageUrls[0]} alt="" /> : <ImageIcon aria-hidden="true" />}{item.imageUrls.length > 1 ? <span>{item.imageUrls.length}</span> : null}</button>
+                    <div className="product-row-copy">
+                      {(item.sourceSku ?? item.sku) ? <span className="product-brand"><i aria-hidden="true" />{item.sourceSku ?? item.sku}</span> : null}
+                      {item.imageUrls.length ? <button type="button" className="product-title-button" onClick={() => setGalleryProduct({ displayName: item.displayName, imageUrls: item.imageUrls })}><h2>{item.displayName}</h2></button> : <h2>{item.displayName}</h2>}
+                      <p>{item.packaging ? item.packaging + ' · ' : ''}{availabilityLabel}</p>
+                      {item.description || item.attributes.length ? <details className="product-extra"><summary>Подробнее</summary>{item.description ? <p>{item.description}</p> : null}{item.attributes.length ? <dl>{item.attributes.map(attribute => <div key={attribute.name}><dt>{attribute.name}</dt><dd>{attribute.value}</dd></div>)}</dl> : null}</details> : null}
+                    </div>
                   </div>
                   <div className="product-row-actions">
                     <div className="quantity quantity-large">
@@ -204,6 +211,7 @@ export function CatalogClient({ fixedBrand }: { fixedBrand?: { name: string; slu
           </nav> : null}
         </section>
       </div>
+      <ProductGallery product={galleryProduct} onClose={() => setGalleryProduct(null)} />
     </main>
   )
 }

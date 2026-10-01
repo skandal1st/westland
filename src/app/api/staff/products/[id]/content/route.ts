@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireApiUser } from '@/lib/authz'
 import { ContentError, updateProductContent } from '@/lib/catalog/content'
+import { validBannerImage } from '@/lib/content/assets'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -12,7 +13,7 @@ const schema = z.object({
   displayName: z.string().trim().min(1).max(200).optional(),
   slug: z.string().trim().min(1).max(200).regex(/^[a-zA-Z0-9Ѐ-ӿ-]+$/, 'Некорректный slug').optional(),
   description: z.string().max(10_000).optional(),
-  imageUrls: z.array(z.string().url()).optional(),
+  imageUrls: z.array(z.string().max(2048).refine(validBannerImage, 'Некорректное изображение')).max(8).refine(urls => new Set(urls).size === urls.length, 'Повторяющиеся изображения').optional(),
   seoTitle: z.string().nullable().optional(),
   seoDescription: z.string().nullable().optional(),
   attributes: z.record(z.string().max(500)).refine(value => Object.keys(value).length <= 30 && Object.keys(value).every(key => key.trim().length > 0 && key.length <= 80), 'Некорректные характеристики').optional(),
@@ -28,7 +29,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 
   try {
     const updated = await updateProductContent(params.id, parsed.data, { actor: auth.user })
-    return NextResponse.json({ content: { displayName: updated.displayName, slug: updated.slug, description: updated.description, attributes: updated.attributes } })
+    return NextResponse.json({ content: { displayName: updated.displayName, slug: updated.slug, description: updated.description, imageUrls: updated.imageUrls, attributes: updated.attributes } })
   } catch (error) {
     if (error instanceof LicenseError || error instanceof CapabilityError) return NextResponse.json({ error: error.message }, { status: 403 })
     if (error instanceof ContentError) {

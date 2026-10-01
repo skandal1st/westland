@@ -32,16 +32,17 @@ describe('product storefront overlay', () => {
 
   it('saves supplemental description and attributes with the acting employee', async () => {
     const attributes = { Крепость: 'средняя', Вес: '25 г' }
-    mocks.update.mockResolvedValue({ displayName: 'Товар', slug: 'tovar', description: 'Дополнение', attributes })
+    const imageUrls = ['/api/content/assets/123e4567-e89b-12d3-a456-426614174000.webp']
+    mocks.update.mockResolvedValue({ displayName: 'Товар', slug: 'tovar', description: 'Дополнение', imageUrls, attributes })
 
-    const response = await PUT(request({ displayName: ' Товар ', slug: 'tovar', description: 'Дополнение', attributes }), params)
+    const response = await PUT(request({ displayName: ' Товар ', slug: 'tovar', description: 'Дополнение', imageUrls, attributes }), params)
 
     expect(response.status).toBe(200)
     expect(mocks.update).toHaveBeenCalledWith('product-1', {
-      displayName: 'Товар', slug: 'tovar', description: 'Дополнение', attributes,
+      displayName: 'Товар', slug: 'tovar', description: 'Дополнение', imageUrls, attributes,
     }, { actor: expect.objectContaining({ id: 'staff-1' }) })
     await expect(response.json()).resolves.toEqual({ content: {
-      displayName: 'Товар', slug: 'tovar', description: 'Дополнение', attributes,
+      displayName: 'Товар', slug: 'tovar', description: 'Дополнение', imageUrls, attributes,
     } })
   })
 
@@ -49,6 +50,14 @@ describe('product storefront overlay', () => {
     const attributes = Object.fromEntries(Array.from({ length: 31 }, (_, index) => [`Поле ${index}`, 'значение']))
 
     expect((await PUT(request({ attributes }), params)).status).toBe(400)
+    expect(mocks.update).not.toHaveBeenCalled()
+  })
+
+  it('rejects more than eight images and unsafe image URLs', async () => {
+    const image = '/api/content/assets/123e4567-e89b-12d3-a456-426614174000.webp'
+    expect((await PUT(request({ imageUrls: Array.from({ length: 9 }, () => image) }), params)).status).toBe(400)
+    expect((await PUT(request({ imageUrls: [image, image] }), params)).status).toBe(400)
+    expect((await PUT(request({ imageUrls: ['javascript:alert(1)'] }), params)).status).toBe(400)
     expect(mocks.update).not.toHaveBeenCalled()
   })
 })

@@ -152,6 +152,7 @@ model AppSettings {
   invoicePrefix          String           @default("WS")
   sellerRequisites       Json?
   palette                String?
+  showOutOfStock         Boolean          @default(true)
   updatedAt              DateTime         @updatedAt
 }
 

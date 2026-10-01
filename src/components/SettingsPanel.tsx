@@ -15,16 +15,16 @@ type Form = {
   companyName: string; inn: string; ogrn: string; kpp: string; city: string; legalAddress: string; phone: string; email: string
   bankName: string; bankBik: string; bankAccount: string; bankCor: string
   directorName: string; accountantName: string
-  vatEnabled: boolean; vatRate: string; paymentPurpose: string
+  vatEnabled: boolean; vatRate: string; paymentPurpose: string; showOutOfStock: boolean
 }
 
 const empty: Form = {
   companyName: '', inn: '', ogrn: '', kpp: '', city: '', legalAddress: '', phone: '', email: '',
   bankName: '', bankBik: '', bankAccount: '', bankCor: '',
-  directorName: '', accountantName: '', vatEnabled: false, vatRate: '', paymentPurpose: '',
+  directorName: '', accountantName: '', vatEnabled: false, vatRate: '', paymentPurpose: '', showOutOfStock: true,
 }
 
-type TextField = Exclude<keyof Form, 'vatEnabled'>
+type TextField = Exclude<keyof Form, 'vatEnabled' | 'showOutOfStock'>
 
 export function SettingsPanel() {
   const [form, setForm] = useState<Form>(empty)
@@ -34,13 +34,15 @@ export function SettingsPanel() {
   const load = useCallback(async () => {
     const response = await fetch('/api/staff/settings')
     if (!response.ok) return
-    const q: Requisites = (await response.json()).requisites ?? {}
+    const data = await response.json()
+    const q: Requisites = data.requisites ?? {}
     setForm({
       companyName: q.companyName ?? '', inn: q.inn ?? '', ogrn: q.ogrn ?? '', kpp: q.kpp ?? '', city: q.city ?? '',
       legalAddress: q.legalAddress ?? '', phone: q.phone ?? '', email: q.email ?? '',
       bankName: q.bank?.name ?? '', bankBik: q.bank?.bik ?? '', bankAccount: q.bank?.account ?? '', bankCor: q.bank?.corAccount ?? '',
       directorName: q.directorName ?? '', accountantName: q.accountantName ?? '',
       vatEnabled: Boolean(q.vatEnabled), vatRate: q.vatRate != null ? String(q.vatRate) : '', paymentPurpose: q.paymentPurpose ?? '',
+      showOutOfStock: data.showOutOfStock !== false,
     })
   }, [])
   useEffect(() => { load() }, [load])
@@ -59,6 +61,7 @@ export function SettingsPanel() {
       directorName: form.directorName, accountantName: form.accountantName,
       vatEnabled: form.vatEnabled, vatRate: form.vatRate ? Number(form.vatRate) : undefined,
       paymentPurpose: form.paymentPurpose,
+      showOutOfStock: form.showOutOfStock,
     }
     const response = await fetch('/api/staff/settings', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) })
     setSaving(false)
@@ -72,6 +75,14 @@ export function SettingsPanel() {
       {message ? <p className="settings-message" role="status">{message}</p> : null}
       <PaletteSwitcher />
       <form onSubmit={save}>
+        <section>
+          <h3>Каталог</h3>
+          <p className="settings-note">Настройка действует для всех покупателей и учитывает остаток выбранного канала получения.</p>
+          <div className="settings-grid">
+            <label className="check wide"><input type="checkbox" checked={form.showOutOfStock} onChange={(event) => setForm((prev) => ({ ...prev, showOutOfStock: event.target.checked }))} /> Показывать товары с нулевым остатком</label>
+          </div>
+        </section>
+
         <section>
           <h3>Реквизиты компании</h3>
           <p className="settings-note">Используются как реквизиты продавца в PDF-счёте, если они не заданы для конкретного канала.</p>

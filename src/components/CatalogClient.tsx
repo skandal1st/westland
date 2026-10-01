@@ -75,6 +75,7 @@ export function CatalogClient({ fixedBrand }: { fixedBrand?: { name: string; slu
   if (search) params.set('q', search)
   const catalog = useRemoteResource('/api/catalog?' + params.toString(), decodeCatalog)
   const facetParams = new URLSearchParams()
+  if(channelId)facetParams.set('channel',channelId)
   if(categorySlug)facetParams.set('category',categorySlug)
   if(brandSlug)facetParams.set('brand',brandSlug)
   if(search)facetParams.set('q',search)

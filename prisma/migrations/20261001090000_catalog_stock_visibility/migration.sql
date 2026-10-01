@@ -1,0 +1,2 @@
+ALTER TABLE "AppSettings"
+ADD COLUMN "showOutOfStock" BOOLEAN NOT NULL DEFAULT true;

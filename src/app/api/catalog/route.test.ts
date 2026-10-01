@@ -5,15 +5,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/authz', () => ({ getCurrentUser: vi.fn() }))
 vi.mock('@/lib/store', () => ({ getActiveStore: vi.fn() }))
 vi.mock('@/lib/catalog/read', () => ({ listCatalog: vi.fn() }))
+vi.mock('@/lib/db', () => ({ prisma: { appSettings: { findUnique: vi.fn() } } }))
 
 import { getCurrentUser } from '@/lib/authz'
 import { getActiveStore } from '@/lib/store'
 import { listCatalog } from '@/lib/catalog/read'
 import { GET } from '@/app/api/catalog/route'
+import { prisma } from '@/lib/db'
 
 const mockedUser = vi.mocked(getCurrentUser)
 const mockedStore = vi.mocked(getActiveStore)
 const mockedList = vi.mocked(listCatalog)
+const mockedSettings = vi.mocked(prisma.appSettings.findUnique)
 const req = () => new Request('http://x/api/catalog')
 
 describe('GET /api/catalog', () => {
@@ -21,6 +24,8 @@ describe('GET /api/catalog', () => {
     mockedUser.mockReset()
     mockedStore.mockReset()
     mockedList.mockReset()
+    mockedSettings.mockReset()
+    mockedSettings.mockResolvedValue({ showOutOfStock: true } as any)
   })
 
   it('returns 401 for an unauthenticated request (default policy requires auth)', async () => {
@@ -46,7 +51,18 @@ describe('GET /api/catalog', () => {
     const res = await GET(new Request('http://x/api/catalog?q=%20SKU-55%20&take=50&skip=50&category=tea&brand=brand&channel=bank&groupId=attacker&storeId=attacker'))
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ items: [], total: 63 })
-    expect(mockedList).toHaveBeenCalledWith({ storeId: 's1', query: 'SKU-55', take: 50, skip: 50, categorySlug: 'tea', brandSlug: 'brand', channelId: 'bank', groupId: 'vip' })
+    expect(mockedList).toHaveBeenCalledWith({ storeId: 's1', query: 'SKU-55', take: 50, skip: 50, categorySlug: 'tea', brandSlug: 'brand', channelId: 'bank', groupId: 'vip', hideOutOfStock: false })
+  })
+
+  it('applies the shared setting when zero-stock products are hidden', async () => {
+    mockedUser.mockResolvedValue({ id: 'u1', customerId: null, priceGroupId: null } as any)
+    mockedStore.mockResolvedValue({ id: 's1' } as any)
+    mockedSettings.mockResolvedValue({ showOutOfStock: false } as any)
+    mockedList.mockResolvedValue({ items: [], total: 0 })
+
+    await GET(new Request('http://x/api/catalog?channel=bank'))
+
+    expect(mockedList).toHaveBeenCalledWith(expect.objectContaining({ channelId: 'bank', hideOutOfStock: true }))
   })
 
   it.each(['take=NaN', 'take=0', 'take=101', 'take=1.5', 'skip=-1', 'skip=Infinity', 'skip=0.1', 'skip=2147483648', 'q=' + 'a'.repeat(201)])('rejects invalid input without querying products: %s', async params => {

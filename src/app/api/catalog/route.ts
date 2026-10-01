@@ -4,6 +4,7 @@ import { getActiveStore } from '@/lib/store'
 import { listCatalog } from '@/lib/catalog/read'
 import { resolveBuyerPriceGroupId } from '@/lib/pricing'
 import { loadStoreProfile } from '@/lib/store-profile'
+import { prisma } from '@/lib/db'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -29,8 +30,11 @@ export async function GET(request: Request) {
   const categorySlug = url.searchParams.get('category') || undefined
   const brandSlug = url.searchParams.get('brand') || undefined
   const store = await getActiveStore()
-  const groupId = user ? await resolveBuyerPriceGroupId(user) : null
+  const [groupId, settings] = await Promise.all([
+    user ? resolveBuyerPriceGroupId(user) : Promise.resolve(null),
+    prisma.appSettings.findUnique({ where: { storeId: store.id }, select: { showOutOfStock: true } }),
+  ])
 
-  const { items, total } = await listCatalog({ storeId: store.id, take, skip, query, groupId, channelId, categorySlug, brandSlug })
+  const { items, total } = await listCatalog({ storeId: store.id, take, skip, query, groupId, channelId, categorySlug, brandSlug, hideOutOfStock: settings?.showOutOfStock === false })
   return NextResponse.json({ items, total })
 }

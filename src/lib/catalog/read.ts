@@ -64,7 +64,7 @@ function toItem(product: ProductRow): CatalogItem | null {
  * channel projection). Price/availability come from projections/entries — never
  * a synchronous provider call.
  */
-export type CatalogFilters = { storeId: string; categorySlug?: string | null; brandSlug?: string | null; query?: string | null; categoryIds?: string[] }
+export type CatalogFilters = { storeId: string; categorySlug?: string | null; brandSlug?: string | null; query?: string | null; categoryIds?: string[]; channelId?: string | null; hideOutOfStock?: boolean }
 export function catalogWhere(input: CatalogFilters): Prisma.ProductWhereInput {
   // Search text is literal, including SQL LIKE metacharacters in supplier SKUs.
   const query = input.query?.trim().replace(/[\\%_]/g, '\\$&')
@@ -77,6 +77,7 @@ export function catalogWhere(input: CatalogFilters): Prisma.ProductWhereInput {
       { OR: [{ categoryId: null }, { category: { is: { hidden: false } } }] },
       ...(input.categoryIds ? [input.categorySlug ? { categoryId: { in: input.categoryIds } } : { OR: [{ categoryId: null }, { categoryId: { in: input.categoryIds } }] }] : input.categorySlug ? [{ category: { is: { slug: input.categorySlug } } }] : []),
       ...(input.brandSlug ? [{ brand: { is: { slug: input.brandSlug } } }] : []),
+      ...(input.hideOutOfStock && input.channelId ? [{ variants: { some: { isDefault: true, status: 'ACTIVE' as const, availability: { some: { fulfillmentChannelId: input.channelId, availableQuantity: { gt: 0 } } } } } }] : []),
       ...(query ? [{ OR: [
         { canonicalName: { contains: query, mode: 'insensitive' as const } },
         { content: { is: { displayName: { contains: query, mode: 'insensitive' as const } } } },
@@ -98,6 +99,7 @@ export async function listCatalog(input: {
   categorySlug?: string | null
   brandSlug?: string | null
   query?: string | null
+  hideOutOfStock?: boolean
   date?: Date
 }): Promise<{ items: CatalogItem[]; total: number }> {
   const take = Math.min(Math.max(input.take ?? 50, 1), 100)

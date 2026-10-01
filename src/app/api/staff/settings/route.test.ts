@@ -21,22 +21,22 @@ beforeEach(() => {
 describe('shared catalog stock visibility setting', () => {
   it('keeps zero-stock products visible by default', async () => {
     mocks.find.mockResolvedValue(null)
-    await expect((await GET()).json()).resolves.toEqual({ requisites: {}, showOutOfStock: true })
+    await expect((await GET()).json()).resolves.toEqual({ requisites: {}, showOutOfStock: true, showStockQuantity: false })
   })
 
   it('stores the switch together with the shared store settings', async () => {
-    const response = await PUT(request({ showOutOfStock: false }))
+    const response = await PUT(request({ showOutOfStock: false, showStockQuantity: true }))
     expect(response.status).toBe(200)
     expect(mocks.upsert).toHaveBeenCalledWith({
       where: { storeId: 'store-1' },
-      update: { sellerRequisites: {}, showOutOfStock: false },
-      create: { storeId: 'store-1', sellerRequisites: {}, showOutOfStock: false },
+      update: { sellerRequisites: {}, showOutOfStock: false, showStockQuantity: true },
+      create: { storeId: 'store-1', sellerRequisites: {}, showOutOfStock: false, showStockQuantity: true },
     })
   })
 
   it('rejects invalid values and non-admin access', async () => {
-    expect((await PUT(request({ showOutOfStock: 'no' }))).status).toBe(400)
+    expect((await PUT(request({ showOutOfStock: 'no', showStockQuantity: false }))).status).toBe(400)
     mocks.auth.mockResolvedValue({ response: NextResponse.json({ error: 'forbidden' }, { status: 403 }) })
-    expect((await PUT(request({ showOutOfStock: false }))).status).toBe(403)
+    expect((await PUT(request({ showOutOfStock: false, showStockQuantity: false }))).status).toBe(403)
   })
 })

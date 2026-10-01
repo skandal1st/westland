@@ -15,16 +15,16 @@ type Form = {
   companyName: string; inn: string; ogrn: string; kpp: string; city: string; legalAddress: string; phone: string; email: string
   bankName: string; bankBik: string; bankAccount: string; bankCor: string
   directorName: string; accountantName: string
-  vatEnabled: boolean; vatRate: string; paymentPurpose: string; showOutOfStock: boolean
+  vatEnabled: boolean; vatRate: string; paymentPurpose: string; showOutOfStock: boolean; showStockQuantity: boolean
 }
 
 const empty: Form = {
   companyName: '', inn: '', ogrn: '', kpp: '', city: '', legalAddress: '', phone: '', email: '',
   bankName: '', bankBik: '', bankAccount: '', bankCor: '',
-  directorName: '', accountantName: '', vatEnabled: false, vatRate: '', paymentPurpose: '', showOutOfStock: true,
+  directorName: '', accountantName: '', vatEnabled: false, vatRate: '', paymentPurpose: '', showOutOfStock: true, showStockQuantity: false,
 }
 
-type TextField = Exclude<keyof Form, 'vatEnabled' | 'showOutOfStock'>
+type TextField = Exclude<keyof Form, 'vatEnabled' | 'showOutOfStock' | 'showStockQuantity'>
 
 export function SettingsPanel() {
   const [form, setForm] = useState<Form>(empty)
@@ -43,6 +43,7 @@ export function SettingsPanel() {
       directorName: q.directorName ?? '', accountantName: q.accountantName ?? '',
       vatEnabled: Boolean(q.vatEnabled), vatRate: q.vatRate != null ? String(q.vatRate) : '', paymentPurpose: q.paymentPurpose ?? '',
       showOutOfStock: data.showOutOfStock !== false,
+      showStockQuantity: data.showStockQuantity === true,
     })
   }, [])
   useEffect(() => { load() }, [load])
@@ -62,6 +63,7 @@ export function SettingsPanel() {
       vatEnabled: form.vatEnabled, vatRate: form.vatRate ? Number(form.vatRate) : undefined,
       paymentPurpose: form.paymentPurpose,
       showOutOfStock: form.showOutOfStock,
+      showStockQuantity: form.showStockQuantity,
     }
     const response = await fetch('/api/staff/settings', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) })
     setSaving(false)
@@ -80,6 +82,7 @@ export function SettingsPanel() {
           <p className="settings-note">Настройка действует для всех покупателей и учитывает остаток выбранного канала получения.</p>
           <div className="settings-grid">
             <label className="check wide"><input type="checkbox" checked={form.showOutOfStock} onChange={(event) => setForm((prev) => ({ ...prev, showOutOfStock: event.target.checked }))} /> Показывать товары с нулевым остатком</label>
+            <label className="check wide"><input type="checkbox" checked={form.showStockQuantity} onChange={(event) => setForm((prev) => ({ ...prev, showStockQuantity: event.target.checked }))} /> Показывать точное количество товара в наличии</label>
           </div>
         </section>
 

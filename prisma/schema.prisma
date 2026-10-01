@@ -153,6 +153,7 @@ model AppSettings {
   sellerRequisites       Json?
   palette                String?
   showOutOfStock         Boolean?
+  showStockQuantity      Boolean          @default(false)
   updatedAt              DateTime         @updatedAt
 }
 

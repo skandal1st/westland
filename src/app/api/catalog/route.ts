@@ -32,9 +32,9 @@ export async function GET(request: Request) {
   const store = await getActiveStore()
   const [groupId, settings] = await Promise.all([
     user ? resolveBuyerPriceGroupId(user) : Promise.resolve(null),
-    prisma.appSettings.findUnique({ where: { storeId: store.id }, select: { showOutOfStock: true } }),
+    prisma.appSettings.findUnique({ where: { storeId: store.id }, select: { showOutOfStock: true, showStockQuantity: true } }),
   ])
 
   const { items, total } = await listCatalog({ storeId: store.id, take, skip, query, groupId, channelId, categorySlug, brandSlug, hideOutOfStock: settings?.showOutOfStock === false })
-  return NextResponse.json({ items, total })
+  return NextResponse.json({ items, total, showStockQuantity: settings?.showStockQuantity === true })
 }

@@ -40,7 +40,7 @@ const decodeCatalog = (value: unknown) => {
   const items = readArray<CatalogItem>(value, 'items')
   const total = (value as { total?: number }).total
   if (!Number.isSafeInteger(total) || total! < 0) throw new Error('Не удалось получить количество товаров. Повторите запрос.')
-  return { items, total: total! }
+  return { items, total: total!, showStockQuantity: (value as { showStockQuantity?: unknown }).showStockQuantity === true }
 }
 
 type Facet = { name: string; slug: string; count: number }
@@ -162,7 +162,9 @@ export function CatalogClient({ fixedBrand }: { fixedBrand?: { name: string; slu
             {items.map((item) => {
               const quantity = item.variantId ? quantityOf(item.variantId) : 0
               const available = item.availability?.available ?? null
-              const availabilityLabel = available == null || item.availability?.stale ? 'Наличие уточняется' : available > 0 ? 'В наличии' : 'Нет в наличии'
+              const availabilityLabel = catalog.data?.showStockQuantity && available != null
+                ? `${available} шт.${item.availability?.stale ? ' (данные устарели)' : ''}`
+                : available == null || item.availability?.stale ? 'Наличие уточняется' : available > 0 ? 'В наличии' : 'Нет в наличии'
               const canAdd = Boolean(ready && !updating && activeChannel && !channelResource.loading && !channelResource.error && item.variantId && item.price && quantity < 100000)
               return (
                 <article className={'product-row ' + (quantity > 0 ? 'in-cart' : '')} key={item.productId}>

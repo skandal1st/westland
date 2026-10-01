@@ -25,7 +25,7 @@ describe('GET /api/catalog', () => {
     mockedStore.mockReset()
     mockedList.mockReset()
     mockedSettings.mockReset()
-    mockedSettings.mockResolvedValue({ showOutOfStock: true } as any)
+    mockedSettings.mockResolvedValue({ showOutOfStock: true, showStockQuantity: false } as any)
   })
 
   it('returns 401 for an unauthenticated request (default policy requires auth)', async () => {
@@ -50,7 +50,7 @@ describe('GET /api/catalog', () => {
     mockedList.mockResolvedValue({ items: [], total: 63 })
     const res = await GET(new Request('http://x/api/catalog?q=%20SKU-55%20&take=50&skip=50&category=tea&brand=brand&channel=bank&groupId=attacker&storeId=attacker'))
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ items: [], total: 63 })
+    expect(await res.json()).toEqual({ items: [], total: 63, showStockQuantity: false })
     expect(mockedList).toHaveBeenCalledWith({ storeId: 's1', query: 'SKU-55', take: 50, skip: 50, categorySlug: 'tea', brandSlug: 'brand', channelId: 'bank', groupId: 'vip', hideOutOfStock: false })
   })
 
@@ -63,6 +63,17 @@ describe('GET /api/catalog', () => {
     await GET(new Request('http://x/api/catalog?channel=bank'))
 
     expect(mockedList).toHaveBeenCalledWith(expect.objectContaining({ channelId: 'bank', hideOutOfStock: true }))
+  })
+
+  it('returns the shared exact stock visibility setting', async () => {
+    mockedUser.mockResolvedValue({ id: 'u1', customerId: null, priceGroupId: null } as any)
+    mockedStore.mockResolvedValue({ id: 's1' } as any)
+    mockedSettings.mockResolvedValue({ showOutOfStock: true, showStockQuantity: true } as any)
+    mockedList.mockResolvedValue({ items: [], total: 0 })
+
+    const response = await GET(req())
+
+    expect(await response.json()).toMatchObject({ showStockQuantity: true })
   })
 
   it.each(['take=NaN', 'take=0', 'take=101', 'take=1.5', 'skip=-1', 'skip=Infinity', 'skip=0.1', 'skip=2147483648', 'q=' + 'a'.repeat(201)])('rejects invalid input without querying products: %s', async params => {

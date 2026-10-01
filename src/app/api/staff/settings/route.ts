@@ -9,7 +9,7 @@ import { StoreRequisitesInputSchema } from '@/lib/invoices/requisites'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const SettingsInputSchema = StoreRequisitesInputSchema.extend({ showOutOfStock: z.boolean() })
+const SettingsInputSchema = StoreRequisitesInputSchema.extend({ showOutOfStock: z.boolean(), showStockQuantity: z.boolean() })
 
 /** Store settings: seller requisites + city (the invoice fallback identity). */
 export async function GET() {
@@ -18,9 +18,9 @@ export async function GET() {
   const store = await getActiveStore()
   const settings = await prisma.appSettings.findUnique({
     where: { storeId: store.id },
-    select: { sellerRequisites: true, showOutOfStock: true },
+    select: { sellerRequisites: true, showOutOfStock: true, showStockQuantity: true },
   })
-  return NextResponse.json({ requisites: settings?.sellerRequisites ?? {}, showOutOfStock: settings?.showOutOfStock ?? true })
+  return NextResponse.json({ requisites: settings?.sellerRequisites ?? {}, showOutOfStock: settings?.showOutOfStock ?? true, showStockQuantity: settings?.showStockQuantity ?? false })
 }
 
 export async function PUT(request: Request) {
@@ -31,15 +31,15 @@ export async function PUT(request: Request) {
   const parsed = SettingsInputSchema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: 'invalid_input', issues: parsed.error.flatten() }, { status: 400 })
 
-  const { showOutOfStock, ...requisitesInput } = parsed.data
+  const { showOutOfStock, showStockQuantity, ...requisitesInput } = parsed.data
   const requisites = prune(requisitesInput)
   const stored = requisites as unknown as Prisma.InputJsonObject
   await prisma.appSettings.upsert({
     where: { storeId: store.id },
-    update: { sellerRequisites: stored, showOutOfStock },
-    create: { storeId: store.id, sellerRequisites: stored, showOutOfStock },
+    update: { sellerRequisites: stored, showOutOfStock, showStockQuantity },
+    create: { storeId: store.id, sellerRequisites: stored, showOutOfStock, showStockQuantity },
   })
-  return NextResponse.json({ requisites, showOutOfStock })
+  return NextResponse.json({ requisites, showOutOfStock, showStockQuantity })
 }
 
 /** Drop blank/empty values so a cleared field never looks filled in storage. */

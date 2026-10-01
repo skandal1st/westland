@@ -119,7 +119,8 @@ export function CheckoutClient({ storageKey }: { storageKey: string }) {
         {points.map(point => <option key={point.id} value={point.id}>{point.name} · {point.city}, {point.address}</option>)}
       </select></label>
       <Link className="manage-locations" href="/account/locations">Управлять точками доставки</Link>
-      <label>Комментарий<textarea maxLength={1000} disabled={busy || !!attempt || !hydrated} value={comment} onChange={event => setComment(event.target.value)} placeholder="Комментарий к заказу" /></label>
+      <label>Комментарий к заказу<textarea rows={4} maxLength={1000} disabled={busy || !!attempt || !hydrated} value={comment} onChange={event => setComment(event.target.value)} placeholder="Например: позвонить перед доставкой" /></label>
+      <small>Комментарий увидит менеджер в бекофисе, также он будет передан вместе с заказом в 1С.</small>
       {error ? <p className="auth-error" role="alert">{error}</p> : null}
     </section>
     <aside>

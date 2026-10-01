@@ -8,7 +8,7 @@ vi.mock('@/lib/cart/checkout', async importOriginal => ({
 import { POST } from './route'
 import { CheckoutError } from '@/lib/cart/checkout'
 
-const payload = { deliveryLocationId: 'delivery', idempotencyKey: 'test-request-key', cartId: 'cart', cartVersion: 7 }
+const payload = { deliveryLocationId: 'delivery', comment: 'Позвонить перед доставкой', idempotencyKey: 'test-request-key', cartId: 'cart', cartVersion: 7 }
 const request = (body: unknown) => new Request('http://localhost/api/checkout', { method: 'POST', body: JSON.stringify(body) })
 beforeEach(() => { vi.resetAllMocks(); mocks.user.mockResolvedValue({ id: 'buyer' }) })
 

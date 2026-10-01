@@ -61,6 +61,7 @@ describe('CommerceML sale document', () => {
     parser.on('error', e => { throw e }); parser.on('text', t => values.push(t)); parser.write(xml).close()
     expect(xml.match(/<Сумма>0.01<\/Сумма>/g)).toHaveLength(2)
     expect(xml).toContain('<Сумма>0.02</Сумма>')
+    expect(xml).toContain('<Комментарий>Тест 😀</Комментарий>')
     expect(xml).toContain('<Дата>2026-09-22</Дата><ХозОперация>'); expect(xml).toContain('<Время>01:30:00</Время>')
     expect(values).toContain('Buyer & Co'); expect(values).toContain('Тест 😀')
   })

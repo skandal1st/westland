@@ -1,1 +1,1 @@
-ALTER TABLE "AppSettings" ADD COLUMN "showStockQuantity" BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE "AppSettings" ADD COLUMN "showStockQuantity" BOOLEAN;

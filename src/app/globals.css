@@ -132,7 +132,7 @@ a { color: inherit; }
 .access-steps span { display: flex; flex-direction: column; }
 .access-steps small { color: var(--muted); }
 
-.catalog-page { max-width: 1540px; margin: auto; padding: 42px 28px 80px; }
+.catalog-page { width: 100%; max-width: 1540px; margin: auto; padding: 42px 28px 80px; }
 .catalog-banner { min-height: 150px; margin-bottom: 24px; padding: 28px 34px; border-radius: var(--radius-overlay); display: flex; align-items: end; justify-content: space-between; gap: 24px; overflow: hidden; box-shadow: var(--shadow-soft); animation: banner-swap .42s var(--ease-out); }
 .catalog-banner div { display: flex; flex-direction: column; }
 .catalog-banner strong { font-size: clamp(30px, 4vw, 56px); line-height: 1; letter-spacing: .05em; }

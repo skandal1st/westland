@@ -24,9 +24,9 @@ export function StorefrontHeader() {
   const header = useRef<HTMLElement>(null)
   const [menuTop, setMenuTop] = useState(94)
   const [menuOpen, setMenuOpen] = useState(false)
-  const navigation = useRemoteResource('/api/catalog/nav', decodeNav)
-  const nav = navigation.data ?? { categories: [], brands: [] }
   const { view, count, setOpen: setCartOpen } = useCart()
+  const navigation = useRemoteResource('/api/catalog/nav' + (view.channelId ? '?channel=' + encodeURIComponent(view.channelId) : ''), decodeNav)
+  const nav = navigation.data ?? { categories: [], brands: [] }
   const total = view.total
 
   useEffect(() => {

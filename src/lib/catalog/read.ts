@@ -139,8 +139,8 @@ export async function listCatalog(input: {
 }
 
 export type CatalogNav = { categories: CategoryNode[]; brands: { name: string; slug: string }[] }
-export async function listCatalogNav(storeId: string): Promise<CatalogNav> {
-  const facets = await catalogFacets({ storeId })
+export async function listCatalogNav(input: string | { storeId: string; channelId?: string | null; hideOutOfStock?: boolean }): Promise<CatalogNav> {
+  const facets = await catalogFacets(typeof input === 'string' ? { storeId: input } : input)
   return { categories: facets.tree, brands: facets.brands }
 }
 

@@ -162,13 +162,14 @@ export function CatalogClient({ fixedBrand }: { fixedBrand?: { name: string; slu
             {items.map((item) => {
               const quantity = item.variantId ? quantityOf(item.variantId) : 0
               const available = item.availability?.available ?? null
+              const availabilityLabel = available == null || item.availability?.stale ? 'Наличие уточняется' : available > 0 ? 'В наличии' : 'Нет в наличии'
               const canAdd = Boolean(ready && !updating && activeChannel && !channelResource.loading && !channelResource.error && item.variantId && item.price && quantity < 100000)
               return (
                 <article className={'product-row ' + (quantity > 0 ? 'in-cart' : '')} key={item.productId}>
                   <div className="product-row-info">
                     {(item.sourceSku ?? item.sku) ? <span className="product-brand"><i aria-hidden="true" />{item.sourceSku ?? item.sku}</span> : null}
                     <h2>{item.displayName}</h2>
-                    <p>{item.packaging ? item.packaging + ' · ' : ''}{available != null ? `Последние данные: ${available} шт.${item.availability?.stale ? ' (данные устарели)' : ''}. Наличие уточняется` : 'остаток уточняется'}</p>
+                    <p>{item.packaging ? item.packaging + ' · ' : ''}{availabilityLabel}</p>
                     {item.description || item.attributes.length ? <details className="product-extra"><summary>Подробнее</summary>{item.description ? <p>{item.description}</p> : null}{item.attributes.length ? <dl>{item.attributes.map(attribute => <div key={attribute.name}><dt>{attribute.name}</dt><dd>{attribute.value}</dd></div>)}</dl> : null}</details> : null}
                   </div>
                   <div className="product-row-actions">

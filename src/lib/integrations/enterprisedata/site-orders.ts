@@ -31,8 +31,15 @@ async function references(tx: Tx, t: CommercialSnapshot, binding: SiteBinding, n
     if (found.length !== 1) return bad('ed_' + entityType + '_mapping_required')
     return found[0]
   }
-  const seller = get('seller', t.channel.id), warehouse = get('location', t.warehouse.id), book = get('priceType', t.pricing.bookId)
+  const warehouse = get('location', t.warehouse.id), book = get('priceType', t.pricing.bookId)
   const channel = ChannelMappingSchema.parse(get('channel', t.channel.id).sourceData)
+  // One ERP organization may serve several storefront channels. Seller mappings
+  // are unique by their source GUID, so resolve the organization declared by the
+  // channel instead of assuming that the mapping belongs to this channel ID.
+  const seller = await tx.externalReference.findUnique({ where: { connectionId_entityType_externalId: {
+    connectionId: binding.connectionId, entityType: 'seller', externalId: channel.sellerExternalId,
+  } } })
+  if (!seller) return bad('ed_seller_mapping_required')
   const legal = SellerRequisitesSchema.parse(seller.sourceData)
   if (fingerprint(legal) !== fingerprint(t.seller) || channel.channelId !== t.channel.id || channel.sellerExternalId !== seller.externalId || channel.warehouseExternalId !== warehouse.externalId || channel.priceTypeExternalId !== book.externalId) bad('ed_channel_mapping_mismatch')
   guid.parse(seller.externalId); guid.parse(warehouse.externalId)

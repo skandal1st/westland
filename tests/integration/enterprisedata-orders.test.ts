@@ -148,6 +148,29 @@ it('gives a new approved customer a stable source-scoped UUID without sharing an
   expect(await db.externalReference.count({ where: { connectionId, entityType: 'edCustomerIdentity' } })).toBe(1)
 })
 
+it('reuses one ERP seller organization across several storefront channels', async () => {
+  const sharedChannel = await db.fulfillmentChannel.create({ data: {
+    storeId, code: 'cash-channel', name: 'Cash channel', inventoryLocationId: warehouseId,
+    paymentMethod: 'CASH', priceBookId: bookId,
+  } })
+  await db.externalReference.create({ data: {
+    connectionId, entityType: 'channel', entityId: sharedChannel.id, externalId: sharedChannel.id,
+    sourceData: {
+      channelId: sharedChannel.id,
+      warehouseExternalId: '33333333-3333-4333-8333-333333333333',
+      priceTypeExternalId: 'price-external',
+      sellerExternalId: '44444444-4444-4444-8444-444444444444',
+    },
+  } })
+  channelId = sharedChannel.id
+
+  await submitted()
+  const out = await transport().output()
+
+  expect(out.xml.toString()).toContain('<Организация><Ссылка>44444444-4444-4444-8444-444444444444</Ссылка>')
+  expect((await db.orderExport.findFirstOrThrow({ where: { order: { fulfillmentChannelId: sharedChannel.id } } })).lastError).toBeNull()
+})
+
 it('allows a verified ED counterparty mapping without rewriting a legacy CommerceML identity, then freezes it', async () => {
   await db.onecSaleCustomerIdentity.create({ data: { connectionId, customerId: user.customerId!, xmlId: 'site-legacy-cml', origin: 'WEBSITE', inn: '7798765432', kpp: '771201001' } })
   const externalId = '77777777-7777-4777-8777-777777777777'

@@ -51,3 +51,10 @@ test('reviewed category banner expansion accepts only its exact artifact',()=>{
  assert.throws(()=>assertAdditiveMigration(sql+'\nDELETE FROM "Order";'))
  assert.throws(()=>assertAdditiveMigration(sql.replace('TEXT;','TEXT NOT NULL;')))
 })
+
+test('reviewed product badges expansion accepts only its exact nullable JSONB artifact', () => {
+  const sql = fs.readFileSync(new URL('../../prisma/migrations/20261005120000_product_badges/migration.sql', import.meta.url), 'utf8')
+  assert.doesNotThrow(() => assertAdditiveMigration(sql))
+  assert.throws(() => assertAdditiveMigration(sql + '\nDELETE FROM "CommerceProductContent";'))
+  assert.throws(() => assertAdditiveMigration(sql.replace('JSONB;', 'JSONB NOT NULL;')))
+})

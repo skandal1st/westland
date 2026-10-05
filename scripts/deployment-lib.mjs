@@ -18,7 +18,8 @@ export function persistImage(file, image) {
 // The mandatory copy rehearsal still runs candidate AND previous-image Prisma reads before production migration.
 // Exact digest prevents this exception from authorizing edits, data rewrites or unrelated constraints.
 // Banner targeting: nullable FK, existing rows remain null, old image ignores it.
-const reviewedAdditiveMigrations = new Set(['524e27987da4249e8e972a65fa7c465936e75acf9348f108bfd4c4963711d542', '78176c9ff6d3ae68177818cd14b5b86ab5e8150aa1333de347378a063cae2d44'])
+// Product badges: one nullable JSONB column on the storefront overlay; old images ignore it.
+const reviewedAdditiveMigrations = new Set(['524e27987da4249e8e972a65fa7c465936e75acf9348f108bfd4c4963711d542', '78176c9ff6d3ae68177818cd14b5b86ab5e8150aa1333de347378a063cae2d44', '7d4bf7e83beed1f12c6955e463d7cc67e0402e96b0cd4b5a96fdc8c6ee299355'])
 export function assertAdditiveMigration(sql) {
   if (reviewedAdditiveMigrations.has(crypto.createHash('sha256').update(sql.replace(/\r\n/g, '\n')).digest('hex'))) return
   const statements = sql.replace(/--[^\r\n]*/g, '').split(';').map(x => x.trim()).filter(Boolean)

@@ -187,6 +187,7 @@ it.each(['TEST', 'PRODUCTION'] as const)('exports the accepted point in comments
   const first = await prepareSiteOrder({ storeId, connectionId }, peer.to, db)
   expect(first).not.toBeNull()
   expect(first!.xml).not.toContain('AXIMA.Partner/1|')
+  expect(first!.xml).not.toContain('ТЕСТ ENTERPRISEDATA')
   expect(first!.xml).toContain('Точка: Original delivery')
   expect(first!.xml).toContain('Оплата: безналичная')
   expect(first!.xml).toContain('<Контрагент><Ссылка>22222222-2222-4222-8222-222222222222</Ссылка>')

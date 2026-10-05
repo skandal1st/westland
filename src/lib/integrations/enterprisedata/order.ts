@@ -94,7 +94,10 @@ export function renderWebsiteOrder(snapshot: unknown, references: Omit<OrderRefe
   if (assignment && (!testEnvironment || assignment.documentId !== externalDocumentId || assignment.number !== number || assignment.counterpartyId !== refs.counterparty || assignment.organizationId !== refs.organization)) fail('ed_partner_assignment_mismatch')
   if (assignment && (terms.comment.includes(PARTNER_MARKER) || terms.delivery.name.includes(PARTNER_MARKER) || terms.number.includes(PARTNER_MARKER))) fail('ed_partner_marker_reserved')
   const originalNumber = terms.number
-  return renderTerms({ ...terms, number, comment: 'AXIMA ' + originalNumber + '. Точка: ' + terms.delivery.name + '. Оплата: ' + (terms.channel.paymentMethod === 'BANK_TRANSFER' ? 'безналичная' : 'наличная') + '. ' + terms.comment }, refs, externalDocumentId, 'ДоКлиента', testEnvironment, assignment)
+  // A TEST connection already targets an isolated 1C database. Keep its mode for
+  // validation and legacy assignment checks, but do not alter every real website
+  // order comment with a synthetic warning.
+  return renderTerms({ ...terms, number, comment: 'AXIMA ' + originalNumber + '. Точка: ' + terms.delivery.name + '. Оплата: ' + (terms.channel.paymentMethod === 'BANK_TRANSFER' ? 'безналичная' : 'наличная') + '. ' + terms.comment }, refs, externalDocumentId, 'ДоКлиента', false, assignment)
 }
 function renderTerms(terms: CommercialSnapshot, refs: Omit<OrderReferences, 'evidenceSha256'>, externalDocumentId: string, deliveryMethod: 'ДоКлиента' | 'Самовывоз', testEnvironment: boolean, assignment?: PartnerAssignment) {
   uuid.parse(externalDocumentId)

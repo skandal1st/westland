@@ -194,6 +194,13 @@ a { color: inherit; }
 .product-brand { color: #5f5b65; display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 700; letter-spacing: .08em; }
 .product-brand i { width: 7px; height: 7px; border-radius: 50%; background: var(--success); flex: none; }
 .unavailable .product-brand i { background: #aaa6ae; }
+.product-meta-line { min-height: 20px; display: flex; align-items: center; flex-wrap: wrap; gap: 5px 10px; }
+.product-badges { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.product-badge { min-height: 20px; padding: 2px 7px; border: 1px solid var(--line); border-radius: 999px; display: inline-flex; align-items: center; background: var(--surface); color: var(--ink); font-size: 11px; font-weight: 700; line-height: 1.2; letter-spacing: 0; white-space: nowrap; }
+.product-badge-hit { border-color: var(--ink); background: var(--ink); color: white; }
+.product-badge-new { border-color: color-mix(in srgb,var(--success) 42%,var(--line)); background: color-mix(in srgb,var(--success) 10%,white); color: var(--success); }
+.product-badge-discontinued { border-color: color-mix(in srgb,var(--danger) 38%,var(--line)); background: color-mix(in srgb,var(--danger) 8%,white); color: var(--danger); }
+.product-badge-limited { border-color: color-mix(in srgb,var(--purple) 35%,var(--line)); background: color-mix(in srgb,var(--selected-bg) 58%,white); color: var(--purple); }
 .product-row-info h2 { margin: 2px 0 1px; overflow: hidden; color: var(--ink); font-size: 16px; line-height: 1.25; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .product-row-info p { margin: 0; color: var(--muted); font-size: 12px; }
 .product-extra{margin-top:5px;color:var(--ink);font-size:12px}.product-extra summary{width:max-content;color:var(--purple);cursor:pointer;font-weight:700}.product-extra>p{margin:8px 0;max-width:720px;white-space:pre-line}.product-extra dl{display:grid;max-width:720px;margin:8px 0 0;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 18px}.product-extra dl div{display:flex;min-width:0;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding:4px 0}.product-extra dt{color:var(--muted)}.product-extra dd{margin:0;text-align:right;overflow-wrap:anywhere}
@@ -818,6 +825,14 @@ a { color: inherit; }
 .admin-banner-form input[type="checkbox"] { width:auto; }
 .admin-banner-form .admin-check { flex-direction:row; align-items:center; }
 .product-content-form{margin-top:16px}.product-content-form textarea{min-width:0;width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius-control);color:var(--ink);background:white;resize:vertical}.product-content-form label>small{color:var(--muted);font-weight:400}.product-source-data{margin:16px 0;padding:14px;border:1px solid var(--line);border-radius:var(--radius-control)}.product-source-data dl{display:grid;margin:0;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.product-source-data dl div{min-width:0}.product-source-data dt{color:var(--muted);font-size:12px}.product-source-data dd{margin:4px 0 0;overflow-wrap:anywhere;font-weight:700}
+.product-badges-editor { margin: 20px 0; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius-control); }
+.product-badges-editor legend { padding: 0 6px; font-weight: 700; }
+.product-badges-editor > p { margin: 0 0 12px; color: var(--muted); font-size: 12px; }
+.product-badge-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.product-badge-options label { margin: 0; display: inline-flex; flex-direction: row; align-items: center; gap: 7px; cursor: pointer; }
+.product-badge-options input { width: 17px; height: 17px; margin: 0; padding: 0; accent-color: var(--purple); }
+.product-badge-options input:not(:checked) + .product-badge { border-color: var(--line); background: var(--surface); color: var(--muted); }
+.product-badge-options label:focus-within .product-badge { outline: 2px solid var(--purple); outline-offset: 2px; }
 .product-images-editor { margin: 20px 0; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius-control); }
 .product-images-heading { margin-bottom: 14px; display: flex; justify-content: space-between; gap: 16px; }
 .product-images-heading h3 { margin: 0 0 4px; font-size: 16px; }

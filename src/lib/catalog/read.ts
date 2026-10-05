@@ -4,6 +4,7 @@ import type { Prisma } from '@prisma/client'
 import { priceVariantsInContext, type ResolvedPrice } from '@/lib/pricing'
 import { availabilityForVariants } from '@/lib/pricing/availability'
 import { loadStoreProfile } from '@/lib/store-profile'
+import { parseProductBadges, type ProductBadge } from './badges'
 
 export type CatalogItem = {
   productId: string
@@ -13,6 +14,7 @@ export type CatalogItem = {
   description: string
   imageUrls: string[]
   attributes: { name: string; value: string }[]
+  badges: ProductBadge[]
   sku: string | null
   sourceSku?: string | null
   packaging: string | null
@@ -30,7 +32,7 @@ type ProductRow = {
   categoryId: string | null
   brandId: string | null
   canonicalName: string
-  content: { slug: string; displayName: string; description: string; imageUrls: string[]; attributes: Prisma.JsonValue } | null
+  content: { slug: string; displayName: string; description: string; imageUrls: string[]; attributes: Prisma.JsonValue; badges: Prisma.JsonValue } | null
   variants: { id: string; sku: string; sourceSku: string | null; packaging: string }[]
 }
 
@@ -48,6 +50,7 @@ function toItem(product: ProductRow): CatalogItem | null {
     description: product.content.description,
     imageUrls: product.content.imageUrls,
     attributes,
+    badges: parseProductBadges(product.content.badges),
     sku: variant?.sku ?? null,
     sourceSku: variant?.sourceSku ?? null,
     packaging: variant?.packaging ?? null,
@@ -114,7 +117,7 @@ export async function listCatalog(input: {
       skip,
       select: {
         id: true, categoryId: true, brandId: true, canonicalName: true,
-        content: { select: { slug: true, displayName: true, description: true, imageUrls: true, attributes: true } },
+        content: { select: { slug: true, displayName: true, description: true, imageUrls: true, attributes: true, badges: true } },
         variants: { ...defaultVariant, select: { id: true, sku: true, sourceSku: true, packaging: true } },
       },
     }),
@@ -148,7 +151,7 @@ export async function getProductBySlug(storeId: string, slug: string): Promise<C
   const content = await prisma.commerceProductContent.findUnique({
     where: { storeId_slug: { storeId, slug } },
     select: {
-      slug: true, displayName: true, description: true, imageUrls: true, attributes: true,
+      slug: true, displayName: true, description: true, imageUrls: true, attributes: true, badges: true,
       product: {
         select: {
           id: true, categoryId: true, brandId: true, canonicalName: true, status: true,

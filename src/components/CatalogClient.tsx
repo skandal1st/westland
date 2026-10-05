@@ -13,6 +13,7 @@ import { CategoryTreeControl } from './CategoryTreeControl'
 import type { CategoryNode } from '@/lib/catalog/tree'
 import { StoreBanners, type StorefrontBanner } from './StoreBanners'
 import { ProductGallery } from './ProductGallery'
+import { PRODUCT_BADGE_LABELS, type ProductBadge } from '@/lib/catalog/badges'
 
 type Channel = { id: string; code: string; name: string; paymentMethod: 'BANK_TRANSFER' | 'CASH' }
 
@@ -24,6 +25,7 @@ type CatalogItem = {
   description: string
   imageUrls: string[]
   attributes: { name: string; value: string }[]
+  badges: ProductBadge[]
   sku: string | null
   sourceSku?: string | null
   packaging: string | null
@@ -175,7 +177,10 @@ export function CatalogClient({ fixedBrand }: { fixedBrand?: { name: string; slu
                   <div className="product-row-info">
                     <button type="button" className={'product-thumbnail ' + (item.imageUrls.length ? '' : 'empty')} disabled={!item.imageUrls.length} aria-label={item.imageUrls.length ? `Открыть изображения товара ${item.displayName}` : 'Изображения отсутствуют'} onClick={() => setGalleryProduct({ displayName: item.displayName, imageUrls: item.imageUrls })}>{item.imageUrls[0] ? <img src={item.imageUrls[0]} alt="" /> : <ImageIcon aria-hidden="true" />}{item.imageUrls.length > 1 ? <span>{item.imageUrls.length}</span> : null}</button>
                     <div className="product-row-copy">
-                      {(item.sourceSku ?? item.sku) ? <span className="product-brand"><i aria-hidden="true" />{item.sourceSku ?? item.sku}</span> : null}
+                      {(item.sourceSku ?? item.sku) || item.badges.length ? <div className="product-meta-line">
+                        {(item.sourceSku ?? item.sku) ? <span className="product-brand"><i aria-hidden="true" />{item.sourceSku ?? item.sku}</span> : null}
+                        {item.badges.length ? <div className="product-badges" aria-label="Метки товара">{item.badges.map(badge => <span key={badge} className={`product-badge product-badge-${badge.toLowerCase()}`}>{PRODUCT_BADGE_LABELS[badge]}</span>)}</div> : null}
+                      </div> : null}
                       {item.imageUrls.length ? <button type="button" className="product-title-button" onClick={() => setGalleryProduct({ displayName: item.displayName, imageUrls: item.imageUrls })}><h2>{item.displayName}</h2></button> : <h2>{item.displayName}</h2>}
                       <p>{item.packaging ? item.packaging + ' · ' : ''}{availabilityLabel}</p>
                       {item.description || item.attributes.length ? <details className="product-extra"><summary>Подробнее</summary>{item.description ? <p>{item.description}</p> : null}{item.attributes.length ? <dl>{item.attributes.map(attribute => <div key={attribute.name}><dt>{attribute.name}</dt><dd>{attribute.value}</dd></div>)}</dl> : null}</details> : null}

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { requireApiUser } from '@/lib/authz'
 import { getActiveStore } from '@/lib/store'
+import { parseProductBadges } from '@/lib/catalog/badges'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -32,7 +33,7 @@ export async function GET(request: Request) {
       skip,
       select: {
         id: true, canonicalName: true, status: true,
-        content: { select: { displayName: true, slug: true, description: true, imageUrls: true, attributes: true, updatedById: true } },
+        content: { select: { displayName: true, slug: true, description: true, imageUrls: true, attributes: true, badges: true, updatedById: true } },
         variants: { where: { isDefault: true }, take: 1, select: { sku: true, sourceSku: true, packaging: true } },
       },
     }),
@@ -51,6 +52,7 @@ export async function GET(request: Request) {
       attributes: p.content?.attributes && !Array.isArray(p.content.attributes) && typeof p.content.attributes === 'object'
         ? Object.fromEntries(Object.entries(p.content.attributes).filter((entry): entry is [string, string] => typeof entry[1] === 'string'))
         : {},
+      badges: parseProductBadges(p.content?.badges),
       manuallyEdited: Boolean(p.content?.updatedById),
       sku: p.variants[0]?.sku ?? null,
       sourceSku: p.variants[0]?.sourceSku ?? null,

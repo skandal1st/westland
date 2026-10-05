@@ -364,6 +364,7 @@ model CommerceProductContent {
   seoTitle       String?
   seoDescription String?
   attributes     Json?
+  badges         Json?
   updatedById    String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { requireApiUser } from '@/lib/authz'
 import { ContentError, updateProductContent } from '@/lib/catalog/content'
 import { validBannerImage } from '@/lib/content/assets'
+import { parseProductBadges, PRODUCT_BADGES } from '@/lib/catalog/badges'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -17,6 +18,7 @@ const schema = z.object({
   seoTitle: z.string().nullable().optional(),
   seoDescription: z.string().nullable().optional(),
   attributes: z.record(z.string().max(500)).refine(value => Object.keys(value).length <= 30 && Object.keys(value).every(key => key.trim().length > 0 && key.length <= 80), 'Некорректные характеристики').optional(),
+  badges: z.array(z.enum(PRODUCT_BADGES)).max(PRODUCT_BADGES.length).refine(value => new Set(value).size === value.length, 'Повторяющиеся метки').optional(),
 })
 
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
@@ -29,7 +31,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 
   try {
     const updated = await updateProductContent(params.id, parsed.data, { actor: auth.user })
-    return NextResponse.json({ content: { displayName: updated.displayName, slug: updated.slug, description: updated.description, imageUrls: updated.imageUrls, attributes: updated.attributes } })
+    return NextResponse.json({ content: { displayName: updated.displayName, slug: updated.slug, description: updated.description, imageUrls: updated.imageUrls, attributes: updated.attributes, badges: parseProductBadges(updated.badges) } })
   } catch (error) {
     if (error instanceof LicenseError || error instanceof CapabilityError) return NextResponse.json({ error: error.message }, { status: 403 })
     if (error instanceof ContentError) {

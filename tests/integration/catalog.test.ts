@@ -57,7 +57,7 @@ describe('catalog import / overlay (integration)', () => {
   })
 
   it('keeps the overlay and canonical id stable when re-imported (overlay wins)', async () => {
-    await updateProductContent(productId, { displayName: 'Витринное имя', description: 'Ручное описание' }, { actor: null })
+    await updateProductContent(productId, { displayName: 'Витринное имя', description: 'Ручное описание', badges: ['HIT', 'LIMITED'] }, { actor: null })
 
     const result = await applyProductSnapshot({ storeId, connectionId, payload: snapshot({ name: 'Новое импортное имя' }) }, prisma)
     // Canonical id is stable across re-import (ExternalReference mapping).
@@ -69,6 +69,7 @@ describe('catalog import / overlay (integration)', () => {
     expect(product?.canonicalName).toBe('Новое импортное имя') // canonical updated
     expect(product?.content?.displayName).toBe('Витринное имя') // overlay NOT overwritten
     expect(product?.content?.description).toBe('Ручное описание')
+    expect(product?.content?.badges).toEqual(['HIT', 'LIMITED'])
 
     expect(await prisma.providerSnapshot.count({ where: { storeId, externalId: 'EXT-1' } })).toBe(2)
   })
@@ -78,6 +79,7 @@ describe('catalog import / overlay (integration)', () => {
     expect(total).toBe(1)
     expect(items[0].displayName).toBe('Витринное имя')
     expect(items[0].sku).toBe('SKU-1')
+    expect(items[0].badges).toEqual(['HIT', 'LIMITED'])
   })
 
   it('soft-archives on provider deletion and drops it from the storefront', async () => {

@@ -2,6 +2,7 @@ import { assertCapability } from '@/lib/capabilities'
 import { prisma } from '@/lib/db'
 import { AuditAction, recordAudit } from '@/lib/audit'
 import type { SessionUser } from '@/lib/authz'
+import type { ProductBadge } from './badges'
 
 export class ContentError extends Error {
   constructor(public code: 'NOT_FOUND' | 'SLUG_TAKEN') {
@@ -18,6 +19,7 @@ export type ContentPatch = {
   seoTitle?: string | null
   seoDescription?: string | null
   attributes?: unknown
+  badges?: ProductBadge[]
 }
 
 /**
@@ -51,6 +53,7 @@ export async function updateProductContent(
         seoTitle: patch.seoTitle === undefined ? undefined : patch.seoTitle,
         seoDescription: patch.seoDescription === undefined ? undefined : patch.seoDescription,
         attributes: patch.attributes === undefined ? undefined : (patch.attributes as any),
+        badges: patch.badges === undefined ? undefined : patch.badges,
         updatedById: options.actor?.id ?? null,
       },
     })

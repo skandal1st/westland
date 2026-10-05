@@ -5,6 +5,7 @@ import { productStatusLabel } from '@/lib/status-labels'
 import { ImagePlus, Star, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useRemoteResource } from '@/lib/use-remote-resource'
+import { PRODUCT_BADGES, PRODUCT_BADGE_LABELS, type ProductBadge } from '@/lib/catalog/badges'
 
 type Product = {
   id: string
@@ -15,6 +16,7 @@ type Product = {
   description: string
   imageUrls: string[]
   attributes: Record<string, string>
+  badges: ProductBadge[]
   packaging: string | null
   manuallyEdited: boolean
   sku: string | null
@@ -73,6 +75,7 @@ const save = async (event: React.FormEvent<HTMLFormElement>) => {
         description: String(form.get('description') ?? ''),
         imageUrls: editing.imageUrls,
         attributes,
+        badges: editing.badges,
       }),
     })
     if (response.ok) {
@@ -109,6 +112,10 @@ const save = async (event: React.FormEvent<HTMLFormElement>) => {
 
   const makePrimary = (url: string) => setEditing(current => current ? { ...current, imageUrls: [url, ...current.imageUrls.filter(item => item !== url)] } : current)
   const removeImage = (url: string) => setEditing(current => current ? { ...current, imageUrls: current.imageUrls.filter(item => item !== url) } : current)
+  const toggleBadge = (badge: ProductBadge, checked: boolean) => setEditing(current => current ? {
+    ...current,
+    badges: PRODUCT_BADGES.filter(item => item === badge ? checked : current.badges.includes(item)),
+  } : current)
 
 
   return (
@@ -143,6 +150,16 @@ const save = async (event: React.FormEvent<HTMLFormElement>) => {
           <label>Название на сайте<input name="displayName" maxLength={200} defaultValue={editing.displayName ?? editing.canonicalName} required /></label>
           <label>Адрес страницы<input name="slug" maxLength={200} defaultValue={editing.slug ?? ''} required /></label>
           <label>Дополнительное описание<textarea name="description" maxLength={10000} defaultValue={editing.description} rows={5} placeholder="Состав, особенности, рекомендации или другая полезная покупателю информация" /></label>
+          <fieldset className="product-badges-editor">
+            <legend>Метки товара</legend>
+            <p>Можно выбрать несколько меток. Они будут видны покупателям в каталоге.</p>
+            <div className="product-badge-options">
+              {PRODUCT_BADGES.map(badge => <label key={badge}>
+                <input type="checkbox" checked={editing.badges.includes(badge)} onChange={event => toggleBadge(badge, event.target.checked)} />
+                <span className={`product-badge product-badge-${badge.toLowerCase()}`}>{PRODUCT_BADGE_LABELS[badge]}</span>
+              </label>)}
+            </div>
+          </fieldset>
           <section className="product-images-editor" aria-labelledby="product-images-title">
             <div className="product-images-heading"><div><h3 id="product-images-title">Изображения товара</h3><p>Первое изображение используется как главное. Изменения применятся после сохранения товара.</p></div><span>{editing.imageUrls.length} / 8</span></div>
             <div className="product-images-grid">

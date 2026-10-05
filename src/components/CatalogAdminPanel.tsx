@@ -3,7 +3,7 @@
 
 import { productStatusLabel } from '@/lib/status-labels'
 import { ImagePlus, Star, Trash2 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRemoteResource } from '@/lib/use-remote-resource'
 import { PRODUCT_BADGES, PRODUCT_BADGE_LABELS, type ProductBadge } from '@/lib/catalog/badges'
 
@@ -57,6 +57,30 @@ export function CatalogAdminPanel() {
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const editorOpen = editing !== null
+
+  const closeEditor = () => {
+    if (saving || uploading) return
+    setEditing(null)
+    setError(null)
+  }
+
+  useEffect(() => {
+    if (!editorOpen) return
+    const previousOverflow = document.body.style.overflow
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !saving && !uploading) {
+        setEditing(null)
+        setError(null)
+      }
+    }
+    document.body.style.overflow = 'hidden'
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [editorOpen, saving, uploading])
 
 const save = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -143,11 +167,12 @@ const save = async (event: React.FormEvent<HTMLFormElement>) => {
         <button className="button button-secondary" disabled={loading || (page + 1) * 50 >= total} onClick={() => { setPage(p => p + 1); setEditing(null) }}>Далее</button>
       </nav> : null}
       {editing ? (
-        <form className="admin-banner-form product-content-form" onSubmit={save}>
-          <h2>Информация о товаре</h2>
+        <div className="modal-backdrop product-content-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) closeEditor() }}>
+        <form className="admin-banner-form product-content-form product-content-modal" role="dialog" aria-modal="true" aria-labelledby="product-content-title" onSubmit={save}>
+          <h2 id="product-content-title">Информация о товаре</h2>
           <p className="settings-note">Поля сайта дополняют данные 1С и сохраняются при следующих обменах.</p>
           <fieldset className="product-source-data"><legend>Данные из 1С</legend><dl><div><dt>Название</dt><dd>{editing.canonicalName}</dd></div><div><dt>Артикул</dt><dd>{editing.sourceSku ?? editing.sku ?? '—'}</dd></div><div><dt>Упаковка</dt><dd>{editing.packaging || '—'}</dd></div></dl></fieldset>
-          <label>Название на сайте<input name="displayName" maxLength={200} defaultValue={editing.displayName ?? editing.canonicalName} required /></label>
+          <label>Название на сайте<input name="displayName" maxLength={200} defaultValue={editing.displayName ?? editing.canonicalName} required autoFocus /></label>
           <label>Адрес страницы<input name="slug" maxLength={200} defaultValue={editing.slug ?? ''} required /></label>
           <label>Дополнительное описание<textarea name="description" maxLength={10000} defaultValue={editing.description} rows={5} placeholder="Состав, особенности, рекомендации или другая полезная покупателю информация" /></label>
           <fieldset className="product-badges-editor">
@@ -175,9 +200,10 @@ const save = async (event: React.FormEvent<HTMLFormElement>) => {
           {error ? <p className="auth-error" role="alert">{error}</p> : null}
           <div className="form-row">
             <button className="button button-primary" type="submit" disabled={saving || uploading}>{saving ? 'Сохранение…' : uploading ? 'Загрузка изображений…' : 'Сохранить'}</button>
-            <button className="button button-secondary" type="button" disabled={uploading} onClick={() => setEditing(null)}>Отмена</button>
+            <button className="button button-secondary" type="button" disabled={saving || uploading} onClick={closeEditor}>Отмена</button>
           </div>
         </form>
+        </div>
       ) : null}
     </div>
   )
